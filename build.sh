@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds Lidiflow.app into ./dist. Pass --install to copy it to /Applications,
-# or --release to build for Intel + Apple Silicon and zip it for sharing.
+# or --release to build for Intel + Apple Silicon and package it as .zip and .dmg.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -38,4 +38,24 @@ if [[ "${1:-}" == "--release" ]]; then
     rm -f "$ZIP"
     ditto -c -k --keepParent "$APP" "$ZIP"
     echo "Packaged $ZIP"
+
+    # Drag-to-Applications disk image. create-dmg drives Finder via AppleScript,
+    # so it needs a logged-in session (not a headless CI runner).
+    command -v create-dmg >/dev/null || { echo "create-dmg not found: brew install create-dmg" >&2; exit 1; }
+    DMG="dist/Lidiflow-$VERSION.dmg"
+    STAGE="$(mktemp -d)"
+    cp -R "$APP" "$STAGE/"
+    rm -f "$DMG"
+    create-dmg \
+        --volname "Lidiflow" \
+        --volicon "$APP/Contents/Resources/AppIcon.icns" \
+        --background Resources/dmg-background.tiff \
+        --window-size 660 400 \
+        --icon-size 112 \
+        --icon "Lidiflow.app" 180 190 \
+        --hide-extension "Lidiflow.app" \
+        --app-drop-link 480 190 \
+        "$DMG" "$STAGE" >/dev/null
+    rm -rf "$STAGE"
+    echo "Packaged $DMG"
 fi
