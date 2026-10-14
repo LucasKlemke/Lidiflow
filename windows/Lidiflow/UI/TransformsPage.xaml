@@ -1,0 +1,89 @@
+<UserControl x:Class="Lidiflow.UI.TransformsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <TextBlock Text="Transforms" Style="{StaticResource PageTitle}" />
+        <TextBlock x:Name="Intro" Style="{StaticResource Subtle}" />
+
+        <Border Style="{StaticResource Card}" Margin="0,20,0,8">
+            <StackPanel>
+                <CheckBox x:Name="EnabledBox" Content="Atalhos de transform ativos" Click="Enabled_Click" />
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                    <CheckBox x:Name="AutoBox" Content="Aplicar automaticamente em todo ditado:" VerticalAlignment="Center" Click="Auto_Click" />
+                    <ComboBox x:Name="AutoTransformBox" IsSynchronizedWithCurrentItem="False" Width="220" Margin="12,0,0,0" DisplayMemberPath="Name"
+                              SelectionChanged="AutoTransform_Changed" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Grid Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <DockPanel Grid.Column="0">
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Content="Novo" Click="New_Click" />
+                    <Button Content="Apagar" Margin="8,0,0,0" Click="Delete_Click" />
+                    <Button Content="↑" Margin="8,0,0,0" Click="Up_Click" ToolTip="Mover para cima" />
+                    <Button Content="↓" Margin="8,0,0,0" Click="Down_Click" ToolTip="Mover para baixo" />
+                </StackPanel>
+                <ListBox x:Name="TransformList" IsSynchronizedWithCurrentItem="False" MinHeight="320" MaxHeight="460" SelectionChanged="List_SelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel Margin="0,2">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding ShortcutLabel}" Opacity="0.6" FontSize="12"
+                                           VerticalAlignment="Center" Margin="12,0,0,0" />
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+
+            <Border x:Name="Editor" Grid.Column="2" Style="{StaticResource Card}" VerticalAlignment="Top">
+                <StackPanel>
+                    <TextBlock Text="Nome" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBox x:Name="NameBox" TextChanged="Name_TextChanged" />
+                    <TextBlock Text="Instrução" FontWeight="SemiBold" Margin="0,14,0,4" />
+                    <TextBox x:Name="PromptBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="120"
+                             VerticalScrollBarVisibility="Auto" TextChanged="Prompt_TextChanged" />
+                    <TextBlock Text="Atalho" FontWeight="SemiBold" Margin="0,14,0,4" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="ShortcutText" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <Button x:Name="RecordButton" Content="Gravar atalho" Click="Record_Click" />
+                        <Button x:Name="ClearShortcutButton" Content="Usar o padrão" Margin="8,0,0,0" Click="ClearShortcut_Click" />
+                    </StackPanel>
+                    <TextBlock x:Name="ShortcutError" Style="{StaticResource ErrorText}" Visibility="Collapsed" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <TextBlock Text="Sugestões com IA" Style="{StaticResource SectionTitle}" />
+        <TextBlock Style="{StaticResource Subtle}" Margin="0,0,0,8"
+                   Text="Cole um texto de exemplo e a IA sugere transforms feitos para ele." />
+        <TextBox x:Name="SampleBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" VerticalScrollBarVisibility="Auto" />
+        <StackPanel Orientation="Horizontal" Margin="0,8,0,8">
+            <Button x:Name="SuggestButton" Content="Sugerir transforms" Click="Suggest_Click" />
+            <TextBlock x:Name="SuggestStatus" Style="{StaticResource Subtle}" Margin="12,0,0,0" VerticalAlignment="Center" />
+        </StackPanel>
+        <ItemsControl x:Name="Suggestions">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Adicionar" VerticalAlignment="Center" Margin="12,0,0,0"
+                                    Click="AddSuggestion_Click" />
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Prompt}" Style="{StaticResource Subtle}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

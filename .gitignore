@@ -3,3 +3,8 @@ dist/
 .DS_Store
 *.xcodeproj/
 .swiftpm/
+
+# Windows
+windows/**/bin/
+windows/**/obj/
+windows/Lidiflow/Assets/AppIcon.ico

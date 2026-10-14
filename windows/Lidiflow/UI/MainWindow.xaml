@@ -1,0 +1,33 @@
+<Window x:Class="Lidiflow.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Lidiflow"
+        Width="1020" Height="720" MinWidth="820" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Icon="pack://application:,,,/Assets/AppIcon.png">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="230" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <DockPanel Grid.Column="0" Margin="12,12,4,12">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,4,8,20">
+                <Image Source="pack://application:,,,/Assets/AppIcon.png" Width="34" Height="34" />
+                <TextBlock Text="Lidiflow" FontSize="20" FontWeight="SemiBold" Margin="10,0,0,0" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Style="{StaticResource Subtle}" FontSize="12" Margin="8" />
+            <ListBox x:Name="Nav" BorderThickness="0" Background="Transparent" SelectionChanged="Nav_SelectionChanged">
+                <ListBoxItem Content="Início" Tag="home" Padding="12,8" />
+                <ListBoxItem Content="Modelos" Tag="models" Padding="12,8" />
+                <ListBoxItem Content="Transforms" Tag="transforms" Padding="12,8" />
+                <ListBoxItem Content="Dicionário e snippets" Tag="dictionary" Padding="12,8" />
+                <ListBoxItem Content="Ajustes" Tag="settings" Padding="12,8" />
+            </ListBox>
+        </DockPanel>
+
+        <ScrollViewer x:Name="Scroller" Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ContentControl x:Name="PageHost" Margin="32,24,32,32" MaxWidth="900" HorizontalAlignment="Stretch" />
+        </ScrollViewer>
+    </Grid>
+</Window>

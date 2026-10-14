@@ -91,6 +91,10 @@ Requisitos: macOS 14 ou superior (Intel ou Apple Silicon).
 
    Quem for usar só a chave de API pode pular este passo.
 
+### Windows
+
+Há uma versão para Windows 10 e 11 em [`windows/`](windows/README.md), em C# / WPF, com os mesmos recursos. Por enquanto ela é compilada a partir do código: veja as instruções no [README do Windows](windows/README.md).
+
 ## Compilar do código
 
 Requisitos: macOS 14 ou superior, Xcode 16+ (Swift 5.10+) e [Homebrew](https://brew.sh).

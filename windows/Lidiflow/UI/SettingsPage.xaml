@@ -1,0 +1,77 @@
+<UserControl x:Class="Lidiflow.UI.SettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <TextBlock Text="Ajustes" Style="{StaticResource PageTitle}" />
+        <TextBlock Text="Aparência, idioma, atalhos e permissões." Style="{StaticResource Subtle}" />
+
+        <TextBlock Text="Geral" Style="{StaticResource SectionTitle}" />
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <DockPanel Margin="0,0,0,12">
+                    <ComboBox x:Name="ThemeBox" DockPanel.Dock="Right" Width="220" SelectionChanged="Theme_Changed">
+                        <ComboBoxItem Content="Sistema" Tag="System" />
+                        <ComboBoxItem Content="Claro" Tag="Light" />
+                        <ComboBoxItem Content="Escuro" Tag="Dark" />
+                    </ComboBox>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Tema" />
+                        <TextBlock Text="“Sistema” acompanha o modo claro/escuro do Windows" Style="{StaticResource Subtle}" FontSize="12" />
+                    </StackPanel>
+                </DockPanel>
+                <DockPanel Margin="0,0,0,12">
+                    <ComboBox x:Name="LanguageBox" DockPanel.Dock="Right" Width="220" SelectionChanged="Language_Changed">
+                        <ComboBoxItem Content="Português" Tag="pt" />
+                        <ComboBoxItem Content="English" Tag="en" />
+                        <ComboBoxItem Content="Español" Tag="es" />
+                        <ComboBoxItem Content="Detectar automaticamente" Tag="auto" />
+                    </ComboBox>
+                    <TextBlock Text="Idioma do ditado" VerticalAlignment="Center" />
+                </DockPanel>
+                <DockPanel Margin="0,0,0,12">
+                    <CheckBox x:Name="SoundsBox" DockPanel.Dock="Right" Click="Sounds_Click" />
+                    <TextBlock Text="Sons ao iniciar e parar" VerticalAlignment="Center" />
+                </DockPanel>
+                <DockPanel Margin="0,0,0,12">
+                    <CheckBox x:Name="PolishBox" DockPanel.Dock="Right" Click="Polish_Click" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Ajustar texto com IA" />
+                        <TextBlock Text="Remove vícios de fala e corrige a pontuação" Style="{StaticResource Subtle}" FontSize="12" />
+                    </StackPanel>
+                </DockPanel>
+                <DockPanel>
+                    <CheckBox x:Name="StartupBox" DockPanel.Dock="Right" Click="Startup_Click" />
+                    <TextBlock Text="Abrir o Lidiflow ao entrar no Windows" VerticalAlignment="Center" />
+                </DockPanel>
+            </StackPanel>
+        </Border>
+
+        <DockPanel Margin="0,28,0,10">
+            <Button DockPanel.Dock="Right" Content="Restaurar padrões" Click="Reset_Click" />
+            <TextBlock Text="Atalhos" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+        </DockPanel>
+        <TextBlock Style="{StaticResource Subtle}" Margin="0,0,0,10"
+                   Text="Até 2 atalhos por ação: uma tecla F, uma combinação (Ctrl + Alt + D), modificadores sozinhos (Ctrl + Win, Ctrl direito) ou um botão extra do mouse (meio ou laterais). Transforms têm atalhos próprios na aba Transforms." />
+        <StackPanel x:Name="ShortcutList" />
+
+        <TextBlock Text="Permissões" Style="{StaticResource SectionTitle}" />
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Abrir configurações" VerticalAlignment="Center" Click="Microphone_Click" />
+                    <StackPanel>
+                        <TextBlock Text="Microfone" />
+                        <TextBlock Style="{StaticResource Subtle}" FontSize="12"
+                                   Text="Em Privacidade → Microfone, deixe ativado “Permitir que aplicativos da área de trabalho acessem o microfone”." />
+                    </StackPanel>
+                </DockPanel>
+                <TextBlock Style="{StaticResource Subtle}" FontSize="12" Margin="0,12,0,0"
+                           Text="O Lidiflow não consegue colar em apps abertos como administrador, a menos que ele também rode como administrador." />
+            </StackPanel>
+        </Border>
+
+        <TextBlock Style="{StaticResource Subtle}" FontSize="12" Margin="0,20,0,0">
+            <Run Text="Arquivos do Lidiflow (histórico, modelos, logs): " /><Hyperlink Click="OpenData_Click"><Run x:Name="DataPath" /></Hyperlink>
+        </TextBlock>
+    </StackPanel>
+</UserControl>
