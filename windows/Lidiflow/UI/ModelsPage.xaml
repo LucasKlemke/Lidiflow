@@ -1,0 +1,145 @@
+<UserControl x:Class="Lidiflow.UI.ModelsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- One row of a Whisper or Ollama model list. -->
+        <DataTemplate x:Key="ModelTemplate">
+            <Border Style="{StaticResource Card}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ProgressBar Width="120" Height="4" Maximum="1" Margin="0,0,12,0" VerticalAlignment="Center"
+                                     Value="{Binding ProgressValue, Mode=OneWay}" Visibility="{Binding ProgressVisibility}" />
+                        <TextBlock Text="Em uso" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"
+                                   Visibility="{Binding InUseVisibility}" />
+                        <Button Content="Baixar" Click="ModelDownload_Click" Margin="0,0,8,0" Visibility="{Binding DownloadVisibility}" />
+                        <Button Content="Cancelar" Click="ModelCancel_Click" Margin="0,0,8,0" Visibility="{Binding CancelVisibility}" />
+                        <Button Content="Usar" Click="ModelUse_Click" Margin="0,0,8,0" Visibility="{Binding UseVisibility}" />
+                        <Button Content="Apagar" Click="ModelDelete_Click" Visibility="{Binding DeleteVisibility}" />
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock FontWeight="SemiBold">
+                            <Run Text="{Binding Name, Mode=OneWay}" />
+                            <Run Text="{Binding Size, Mode=OneWay}" FontWeight="Normal" Foreground="Gray" />
+                        </TextBlock>
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Subtle}" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <TextBlock Text="Modelos" Style="{StaticResource PageTitle}" />
+        <TextBlock Style="{StaticResource Subtle}"
+                   Text="Cada parte responde a uma pergunta: roda no meu PC (grátis e privado) ou na minha conta, com a minha chave de API?" />
+
+        <!-- Transcription -->
+        <TextBlock Text="Transcrição" Style="{StaticResource SectionTitle}" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+            <RadioButton x:Name="TranscribeLocal" GroupName="Engine" Content="No meu PC (whisper.cpp)" Checked="Engine_Checked" />
+            <RadioButton x:Name="TranscribeCloud" GroupName="Engine" Content="Minha conta (chave de API)" Margin="24,0,0,0" Checked="Engine_Checked" />
+        </StackPanel>
+
+        <StackPanel x:Name="LocalTranscription">
+            <Border Style="{StaticResource Card}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ProgressBar x:Name="WhisperProgress" Width="120" Height="4" Maximum="1" Margin="0,0,12,0"
+                                     VerticalAlignment="Center" Visibility="Collapsed" />
+                        <Button x:Name="InstallWhisper" Content="Instalar whisper.cpp" Click="InstallWhisper_Click" />
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="whisper.cpp" FontWeight="SemiBold" />
+                        <TextBlock x:Name="WhisperStatus" Style="{StaticResource Subtle}" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+            <TextBlock Text="Escolha um modelo de transcrição. Recomendado: Large v3 Turbo (comprimido)."
+                       Style="{StaticResource Subtle}" Margin="0,8,0,8" />
+            <ItemsControl x:Name="WhisperModels" ItemTemplate="{StaticResource ModelTemplate}" />
+            <TextBlock x:Name="WhisperError" Style="{StaticResource ErrorText}" />
+        </StackPanel>
+
+        <StackPanel x:Name="CloudTranscription">
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <TextBlock Text="Provedor" Width="90" VerticalAlignment="Center" />
+                        <ComboBox x:Name="TranscriptionProviderBox" Width="300" HorizontalAlignment="Left"
+                                  SelectionChanged="TranscriptionProvider_Changed" />
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <TextBlock Text="Modelo" Width="90" VerticalAlignment="Center" />
+                        <ComboBox x:Name="TranscriptionModelBox" Width="300" HorizontalAlignment="Left" IsEditable="True"
+                                  SelectionChanged="TranscriptionModel_Changed" LostFocus="TranscriptionModel_LostFocus" />
+                    </DockPanel>
+                    <DockPanel>
+                        <TextBlock Text="Chave" Width="90" VerticalAlignment="Center" />
+                        <PasswordBox x:Name="TranscriptionKey" Width="300" />
+                        <Button Content="Salvar chave" Margin="8,0,0,0" Click="SaveTranscriptionKey_Click" />
+                        <TextBlock x:Name="TranscriptionKeyStatus" Style="{StaticResource Subtle}" Margin="12,0,0,0" VerticalAlignment="Center" />
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- AI -->
+        <TextBlock Text="IA" Style="{StaticResource SectionTitle}" />
+        <TextBlock Style="{StaticResource Subtle}" Margin="0,0,0,12"
+                   Text="Usada no ajuste de texto, no modo comando e nos transforms." />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+            <RadioButton x:Name="AiLocal" GroupName="Ai" Content="No meu PC (Ollama)" Checked="Ai_Checked" />
+            <RadioButton x:Name="AiCloud" GroupName="Ai" Content="Minha conta (chave de API)" Margin="24,0,0,0" Checked="Ai_Checked" />
+        </StackPanel>
+
+        <StackPanel x:Name="LocalAi">
+            <Border Style="{StaticResource Card}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="StartOllama" Content="Iniciar Ollama" Margin="0,0,8,0" Click="StartOllama_Click" />
+                        <Button x:Name="DownloadOllama" Content="Baixar Ollama" Margin="0,0,8,0" Click="DownloadOllama_Click" />
+                        <Button Content="Atualizar" Click="RefreshOllama_Click" />
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Ollama" FontWeight="SemiBold" />
+                        <TextBlock x:Name="OllamaStatus" Style="{StaticResource Subtle}" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+            <ItemsControl x:Name="OllamaModels" ItemTemplate="{StaticResource ModelTemplate}" Margin="0,8,0,0" />
+            <TextBlock x:Name="OllamaError" Style="{StaticResource ErrorText}" />
+            <Border Style="{StaticResource Card}" Margin="0,8,0,0">
+                <DockPanel>
+                    <TextBlock Text="Endereço" Width="90" VerticalAlignment="Center" />
+                    <TextBox x:Name="OllamaUrl" Width="300" />
+                    <Button Content="Salvar" Margin="8,0,0,0" HorizontalAlignment="Left" Click="SaveOllamaUrl_Click" />
+                </DockPanel>
+            </Border>
+        </StackPanel>
+
+        <StackPanel x:Name="CloudAi">
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <TextBlock Text="Provedor" Width="90" VerticalAlignment="Center" />
+                        <ComboBox x:Name="AiProviderBox" Width="300" HorizontalAlignment="Left" SelectionChanged="AiProvider_Changed" />
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <TextBlock Text="Modelo" Width="90" VerticalAlignment="Center" />
+                        <ComboBox x:Name="AiModelBox" Width="300" IsEditable="True"
+                                  SelectionChanged="AiModel_Changed" LostFocus="AiModel_LostFocus" />
+                        <Button Content="Atualizar lista" Margin="8,0,0,0" HorizontalAlignment="Left" Click="RefreshAiModels_Click" />
+                    </DockPanel>
+                    <DockPanel>
+                        <TextBlock Text="Chave" Width="90" VerticalAlignment="Center" />
+                        <PasswordBox x:Name="AiKey" Width="300" />
+                        <Button Content="Salvar chave" Margin="8,0,0,0" Click="SaveAiKey_Click" />
+                        <Button Content="Obter uma chave" Margin="8,0,0,0" Click="GetKey_Click" />
+                        <TextBlock x:Name="AiKeyStatus" Style="{StaticResource Subtle}" Margin="12,0,0,0" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock x:Name="AiError" Style="{StaticResource ErrorText}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </StackPanel>
+</UserControl>
