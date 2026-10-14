@@ -139,6 +139,10 @@ swift build          # compila
 
 O build é assinado ad-hoc, com o identificador `com.lidiflow.app` fixo, para o macOS manter as permissões entre builds.
 
+## Licença
+
+[MIT](LICENSE). Use, modifique e distribua à vontade.
+
 ---
 
 Os logos dos provedores em `Resources/ProviderIcons` são marcas de seus respectivos donos e aparecem só para identificar cada serviço.
