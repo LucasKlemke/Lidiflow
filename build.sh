@@ -6,11 +6,11 @@ cd "$(dirname "$0")"
 
 ARCHS=()
 [[ "${1:-}" == "--release" ]] && ARCHS=(--arch arm64 --arch x86_64)
-swift build -c release "${ARCHS[@]}"
+swift build -c release ${ARCHS[@]+"${ARCHS[@]}"}
 APP=dist/Lidiflow.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$(swift build -c release "${ARCHS[@]}" --show-bin-path)/Lidiflow" "$APP/Contents/MacOS/Lidiflow"
+cp "$(swift build -c release ${ARCHS[@]+"${ARCHS[@]}"} --show-bin-path)/Lidiflow" "$APP/Contents/MacOS/Lidiflow"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp -R Resources/ProviderIcons "$APP/Contents/Resources/ProviderIcons"
 
