@@ -1,13 +1,16 @@
 #!/bin/bash
-# Builds Lidiflow.app into ./dist. Pass --install to copy it to /Applications.
+# Builds Lidiflow.app into ./dist. Pass --install to copy it to /Applications,
+# or --release to build for Intel + Apple Silicon and zip it for sharing.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-swift build -c release
+ARCHS=()
+[[ "${1:-}" == "--release" ]] && ARCHS=(--arch arm64 --arch x86_64)
+swift build -c release "${ARCHS[@]}"
 APP=dist/Lidiflow.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$(swift build -c release --show-bin-path)/Lidiflow" "$APP/Contents/MacOS/Lidiflow"
+cp "$(swift build -c release "${ARCHS[@]}" --show-bin-path)/Lidiflow" "$APP/Contents/MacOS/Lidiflow"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp -R Resources/ProviderIcons "$APP/Contents/Resources/ProviderIcons"
 
@@ -27,4 +30,12 @@ if [[ "${1:-}" == "--install" ]]; then
     rm -rf /Applications/Lidiflow.app
     cp -R "$APP" /Applications/
     echo "Installed /Applications/Lidiflow.app"
+fi
+
+if [[ "${1:-}" == "--release" ]]; then
+    VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Contents/Info.plist")
+    ZIP="dist/Lidiflow-$VERSION.zip"
+    rm -f "$ZIP"
+    ditto -c -k --keepParent "$APP" "$ZIP"
+    echo "Packaged $ZIP"
 fi

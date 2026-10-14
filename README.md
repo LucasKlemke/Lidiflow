@@ -70,7 +70,28 @@ As chaves de API ficam guardadas no **Keychain do macOS**, nunca em arquivos.
 
 Todos podem ser trocados em **Ajustes → Atalhos**.
 
-## Instalação
+## Baixar
+
+Requisitos: macOS 14 ou superior (Intel ou Apple Silicon).
+
+1. Baixe o `Lidiflow-x.y.z.zip` na [página de releases](https://github.com/LucasKlemke/Lidiflow/releases/latest), abra o zip e arraste o **Lidiflow.app** para **Aplicativos**.
+2. O app não é assinado com certificado da Apple, então o macOS bloqueia a primeira abertura. Rode no Terminal:
+
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/Lidiflow.app
+   ```
+
+   Ou tente abrir uma vez e depois vá em Ajustes do Sistema → Privacidade e Segurança → **Abrir Mesmo Assim**.
+3. Para transcrever no próprio Mac, instale o whisper.cpp com o [Homebrew](https://brew.sh) (e, se quiser IA local, o Ollama):
+
+   ```sh
+   brew install whisper-cpp
+   brew install ollama   # opcional
+   ```
+
+   Quem for usar só a chave de API pode pular este passo.
+
+## Compilar do código
 
 Requisitos: macOS 14 ou superior, Xcode 16+ (Swift 5.10+) e [Homebrew](https://brew.sh).
 
@@ -113,6 +134,7 @@ tecla segurada ─▶ AVAudioEngine (16 kHz) ─▶ whisper-server local / API d
 swift build          # compila
 ./build.sh           # gera dist/Lidiflow.app
 ./build.sh --install # copia para /Applications
+./build.sh --release # app universal (Intel + Apple Silicon) em dist/Lidiflow-x.y.z.zip
 ```
 
 O build é assinado ad-hoc, com o identificador `com.lidiflow.app` fixo, para o macOS manter as permissões entre builds.
