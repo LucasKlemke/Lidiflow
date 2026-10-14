@@ -74,7 +74,7 @@ Todos podem ser trocados em **Ajustes → Atalhos**.
 
 Requisitos: macOS 14 ou superior (Intel ou Apple Silicon).
 
-1. Baixe o `Lidiflow-x.y.z.zip` na [página de releases](https://github.com/LucasKlemke/Lidiflow/releases/latest), abra o zip e arraste o **Lidiflow.app** para **Aplicativos**.
+1. Baixe o `Lidiflow-x.y.z.dmg` na [página de releases](https://github.com/LucasKlemke/Lidiflow/releases/latest), abra e arraste o **Lidiflow** para **Aplicativos**. (Também há um `.zip` com o mesmo app.)
 2. O app não é assinado com certificado da Apple, então o macOS bloqueia a primeira abertura. Rode no Terminal:
 
    ```sh
@@ -134,7 +134,7 @@ tecla segurada ─▶ AVAudioEngine (16 kHz) ─▶ whisper-server local / API d
 swift build          # compila
 ./build.sh           # gera dist/Lidiflow.app
 ./build.sh --install # copia para /Applications
-./build.sh --release # app universal (Intel + Apple Silicon) em dist/Lidiflow-x.y.z.zip
+./build.sh --release # app universal (Intel + Apple Silicon) em dist/Lidiflow-x.y.z.zip e .dmg (requer: brew install create-dmg)
 ```
 
 O build é assinado ad-hoc, com o identificador `com.lidiflow.app` fixo, para o macOS manter as permissões entre builds.
