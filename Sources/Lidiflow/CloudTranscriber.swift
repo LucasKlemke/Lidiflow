@@ -47,9 +47,10 @@ enum CloudTranscriber {
     static func transcribe(wav: Data, language: String, prompt: String?) async throws -> String {
         let provider = Settings.transcriptionProvider
         guard let key = Keychain.key(for: provider) else { throw Failure.missingKey(provider) }
+        let model = Settings.transcriptionModel(for: provider)
 
         var form = MultipartForm()
-        form.field("model", Settings.transcriptionModel(for: provider))
+        form.field("model", model)
         form.field("response_format", "json")
         if language != "auto" { form.field("language", language) }
         if let prompt { form.field("prompt", prompt) }
@@ -65,6 +66,9 @@ enum CloudTranscriber {
         let (data, _) = try await URLSession.shared.data(for: request)
         let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         if let text = json?["text"] as? String {
+            // 16 kHz mono 16-bit PCM after the 44-byte header.
+            let seconds = Double(max(wav.count - 44, 0)) / (AudioRecorder.sampleRate * 2)
+            UsageLog.shared.recordTranscription(provider: provider, model: model, audioSeconds: seconds)
             return text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         let message = (json?["error"] as? [String: Any])?["message"] as? String

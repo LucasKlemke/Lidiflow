@@ -93,6 +93,7 @@ enum LLM {
             throw provider == .ollama ? Failure.ollamaUnavailable : Failure.api(error.localizedDescription)
         }
         let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        recordUsage(json, provider: provider, model: model)
         let text = provider == .anthropic ? anthropicText(json) : chatCompletionsText(json)
         if let text, !text.isEmpty { return text }
         throw Failure.api(errorMessage(json) ?? "resposta vazia")
@@ -113,7 +114,23 @@ enum LLM {
         ]
         // Some cloud reasoning models reject a non-default temperature.
         if provider == .ollama { payload["temperature"] = 0 }
+        if let effort = reasoningEffort(provider: provider, model: model) { payload["reasoning_effort"] = effort }
         return jsonRequest(request, payload)
+    }
+
+    /// Short rewrites don't need deep thinking: reasoning models run at low effort, which is faster and cheaper.
+    /// Only sent to models that accept the parameter, since the others reject the request.
+    private static func reasoningEffort(provider: LLMProvider, model: String) -> String? {
+        let pattern: String
+        switch provider {
+        // o1-mini and o1-preview predate the parameter and reject it.
+        case .openAI: pattern = #"^(o1(?!-mini|-preview)|o[3-9]|gpt-5|gpt-6)"#
+        case .gemini: pattern = #"^gemini-(2\.5|3)"#
+        case .xai: pattern = #"^grok-3-mini"#
+        case .groq: pattern = #"^openai/gpt-oss"#
+        case .anthropic, .ollama: return nil
+        }
+        return model.range(of: pattern, options: .regularExpression) != nil ? "low" : nil
     }
 
     private static func chatCompletionsText(_ json: [String: Any]?) -> String? {
@@ -132,8 +149,9 @@ enum LLM {
             "system": system,
             "messages": [["role": "user", "content": user]],
         ]
-        // Claude 5-family models: short rewrites don't need deep thinking.
-        if model.range(of: #"^claude-(opus|sonnet|haiku|fable)-5"#, options: .regularExpression) != nil {
+        // Short rewrites don't need deep thinking: low effort on every Claude model that takes it.
+        // (Opus 4.5 only took it behind a beta header, so it's left out.)
+        if model.range(of: #"^claude-((opus|sonnet|haiku|fable)-5|opus-4-[6-8]|sonnet-4-6)"#, options: .regularExpression) != nil {
             payload["output_config"] = ["effort": "low"]
         }
         // Server-side fallback when a safety classifier declines (not offered on Haiku).
@@ -151,6 +169,22 @@ enum LLM {
             .compactMap { $0["text"] as? String }
             .joined()
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Logs the tokens a cloud request billed, from the Anthropic or Chat Completions `usage` field.
+    private static func recordUsage(_ json: [String: Any]?, provider: LLMProvider, model: String) {
+        guard let usage = json?["usage"] as? [String: Any] else { return }
+        if provider == .anthropic {
+            UsageLog.shared.recordAI(provider: provider, model: model,
+                                     inputTokens: usage["input_tokens"] as? Int ?? 0,
+                                     outputTokens: usage["output_tokens"] as? Int ?? 0,
+                                     cacheReadTokens: usage["cache_read_input_tokens"] as? Int ?? 0,
+                                     cacheWriteTokens: usage["cache_creation_input_tokens"] as? Int ?? 0)
+        } else {
+            UsageLog.shared.recordAI(provider: provider, model: model,
+                                     inputTokens: usage["prompt_tokens"] as? Int ?? 0,
+                                     outputTokens: usage["completion_tokens"] as? Int ?? 0)
+        }
     }
 
     private static func errorMessage(_ json: [String: Any]?) -> String? {
@@ -200,6 +234,18 @@ enum LLM {
         return items.compactMap { $0["id"] as? String }
             .map { $0.replacingOccurrences(of: "models/", with: "") }
             .filter { id in !excluded.contains { id.localizedCaseInsensitiveContains($0) } }
+            .filter { provider != .openAI || isOpenAITextModel($0) }
             .sorted()
+    }
+
+    /// OpenAI lists every model on the account (images, voice, video, legacy completions, snapshots…).
+    /// Keep only the chat models that work for text through Chat Completions.
+    private static func isOpenAITextModel(_ id: String) -> Bool {
+        guard id.range(of: #"^(gpt-\d|o\d)"#, options: .regularExpression) != nil else { return false }
+        let notText = ["instruct", "codex", "-pro", "deep-research", "computer-use", "chat-latest",
+                       "live", "translate", "diarize", "sora", "oss"]
+        guard !notText.contains(where: id.contains) else { return false }
+        // Dated snapshots (gpt-4o-2024-08-06, gpt-4-0613) duplicate the alias right above them.
+        return id.range(of: #"-\d{4}(-\d{2}-\d{2})?$"#, options: .regularExpression) == nil
     }
 }

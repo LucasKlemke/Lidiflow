@@ -26,6 +26,13 @@ final class AudioRecorder {
         try engine.start()
     }
 
+    /// The last `seconds` of the recording, without stopping. Copies only that tail, so the
+    /// audio thread waits on the lock for the same short time however long the recording gets.
+    func tail(seconds: Double) -> [Float] {
+        let count = Int(Self.sampleRate * seconds)
+        return lock.withLock { Array(samples.suffix(count)) }
+    }
+
     /// Stops capture and returns the recorded samples.
     func stop() -> [Float] {
         engine.inputNode.removeTap(onBus: 0)

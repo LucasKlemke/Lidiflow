@@ -1,7 +1,7 @@
 import Foundation
 
 /// Where polish, command mode and transforms run.
-enum LLMProvider: String, CaseIterable, Identifiable {
+enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     case ollama, openAI, anthropic, groq, gemini, xai
 
     var id: Self { self }
@@ -51,6 +51,18 @@ enum LLMProvider: String, CaseIterable, Identifiable {
         case .gemini: return "AIza…"
         case .xai: return "xai-…"
         case .ollama: return ""
+        }
+    }
+
+    /// Where the provider shows the official usage and billing for the account.
+    var usageURL: URL? {
+        switch self {
+        case .openAI: return URL(string: "https://platform.openai.com/usage")
+        case .anthropic: return URL(string: "https://console.anthropic.com/usage")
+        case .groq: return URL(string: "https://console.groq.com/dashboard/usage")
+        case .gemini: return URL(string: "https://aistudio.google.com/usage")
+        case .xai: return URL(string: "https://console.x.ai")
+        case .ollama: return nil
         }
     }
 

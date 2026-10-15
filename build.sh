@@ -9,8 +9,12 @@ ARCHS=()
 swift build -c release ${ARCHS[@]+"${ARCHS[@]}"}
 APP=dist/Lidiflow.app
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$(swift build -c release ${ARCHS[@]+"${ARCHS[@]}"} --show-bin-path)/Lidiflow" "$APP/Contents/MacOS/Lidiflow"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
+BIN="$(swift build -c release ${ARCHS[@]+"${ARCHS[@]}"} --show-bin-path)"
+cp "$BIN/Lidiflow" "$APP/Contents/MacOS/Lidiflow"
+# transcribe.cpp (Nemotron and other GGUF models), loaded via @executable_path/../Frameworks.
+ditto "$BIN/CTranscribe.framework" "$APP/Contents/Frameworks/CTranscribe.framework"
+codesign --force --sign - "$APP/Contents/Frameworks/CTranscribe.framework"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp -R Resources/ProviderIcons "$APP/Contents/Resources/ProviderIcons"
 
