@@ -48,7 +48,7 @@ Na aba **Modelos**, cada parte responde a uma pergunta: *No meu Mac* ou *Minha c
 
 | | No meu Mac (grátis) | Minha conta (chave de API) |
 |---|---|---|
-| **Transcrição** | Whisper: Base, Small, Medium, Large v3 e Large v3 Turbo, com download dentro do app | OpenAI (`gpt-4o-transcribe`…) ou Groq (`whisper-large-v3-turbo`…) |
+| **Transcrição** | Nemotron Streaming 3.5, Parakeet TDT v3, Qwen3-ASR, Cohere Transcribe e Whisper (Base a Large v3), com download dentro do app | OpenAI (`gpt-4o-transcribe`…) ou Groq (`whisper-large-v3-turbo`…) |
 | **IA** (ajuste, comando, transforms) | Ollama: Qwen 2.5, Llama 3.x, Mistral, Gemma 2, Phi-3… | OpenAI, Anthropic, Groq, Gemini ou xAI |
 
 As chaves de API ficam guardadas no **Keychain do macOS**, nunca em arquivos.
@@ -74,7 +74,7 @@ Todos podem ser trocados em **Ajustes → Atalhos**.
 
 Requisitos: macOS 14 ou superior (Intel ou Apple Silicon).
 
-1. Baixe o `Lidiflow-x.y.z.dmg` na [página de releases](https://github.com/LucasKlemke/Lidiflow/releases/latest), abra e arraste o **Lidiflow** para **Aplicativos**. (Também há um `.zip` com o mesmo app.)
+1. **[Baixe o Lidiflow.dmg](https://github.com/LucasKlemke/Lidiflow/releases/latest/download/Lidiflow.dmg)** (sempre a versão mais recente), abra e arraste o **Lidiflow** para **Aplicativos**. Versões anteriores e o `.zip` ficam na [página de releases](https://github.com/LucasKlemke/Lidiflow/releases).
 2. O app não é assinado com certificado da Apple, então o macOS bloqueia a primeira abertura. Rode no Terminal:
 
    ```sh
@@ -82,7 +82,7 @@ Requisitos: macOS 14 ou superior (Intel ou Apple Silicon).
    ```
 
    Ou tente abrir uma vez e depois vá em Ajustes do Sistema → Privacidade e Segurança → **Abrir Mesmo Assim**.
-3. Para transcrever no próprio Mac, instale o whisper.cpp com o [Homebrew](https://brew.sh) (e, se quiser IA local, o Ollama):
+3. Os modelos Nemotron, Parakeet, Qwen3-ASR e Cohere rodam no próprio app, sem instalar nada. Para os modelos Whisper, instale o whisper.cpp com o [Homebrew](https://brew.sh) (e, se quiser IA local, o Ollama):
 
    ```sh
    brew install whisper-cpp
@@ -138,7 +138,7 @@ tecla segurada ─▶ AVAudioEngine (16 kHz) ─▶ whisper-server local / API d
 swift build          # compila
 ./build.sh           # gera dist/Lidiflow.app
 ./build.sh --install # copia para /Applications
-./build.sh --release # app universal (Intel + Apple Silicon) em dist/Lidiflow-x.y.z.zip e .dmg (requer: brew install create-dmg)
+./build.sh --release # app universal (Intel + Apple Silicon) em dist/Lidiflow-x.y.z.zip e dist/Lidiflow.dmg (requer: brew install create-dmg)
 ```
 
 O build é assinado ad-hoc, com o identificador `com.lidiflow.app` fixo, para o macOS manter as permissões entre builds.
