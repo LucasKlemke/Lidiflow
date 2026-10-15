@@ -244,11 +244,34 @@ final class AppModel: ObservableObject {
         try? JSONEncoder().encode(transforms).write(to: transformsURL, options: .atomic)
     }
 
-    func saveKey(_ key: String, for provider: LLMProvider) {
+    /// Deletes a downloaded transcription model. If it was in use, switches to another downloaded
+    /// one, or reloads the engine so the status says no model is available.
+    func uninstall(_ item: LocalModel) {
+        models.delete(item)
+        guard localModel == item.id else { return }
+        if let other = ModelManager.catalog.first(where: { models.installed.contains($0.id) }) {
+            localModel = other.id
+        } else {
+            onEngineChange()
+        }
+    }
+
+    /// Deletes an Ollama model; if it was in use, switches to another installed one.
+    @MainActor
+    func uninstallOllama(_ id: String) async {
+        let inUse = llmModel == id || llmModel + ":latest" == id
+        await ollama.delete(id)
+        if inUse, llmProvider == .ollama, let other = ollama.installed.first { llmModel = other }
+    }
+
+    /// Returns false when the Keychain refused the change (e.g. access denied); nothing is changed then.
+    @discardableResult
+    func saveKey(_ key: String, for provider: LLMProvider) -> Bool {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        Keychain.setKey(trimmed.isEmpty ? nil : trimmed, for: provider)
-        if Keychain.key(for: provider) != nil { savedKeys.insert(provider) } else { savedKeys.remove(provider) }
+        guard Keychain.setKey(trimmed.isEmpty ? nil : trimmed, for: provider) else { return false }
+        if trimmed.isEmpty { savedKeys.remove(provider) } else { savedKeys.insert(provider) }
         if provider == transcriptionProvider { onEngineChange() }
+        return true
     }
 
     var totalWords: Int { history.reduce(0) { $0 + $1.words } }

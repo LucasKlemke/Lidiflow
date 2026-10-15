@@ -47,6 +47,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case dictionary = "Dicionário"
     case snippets = "Snippets"
     case models = "Modelos"
+    case usage = "Gastos"
     case settings = "Ajustes"
 
     var id: Self { self }
@@ -59,6 +60,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .dictionary: return "character.book.closed"
         case .snippets: return "text.badge.plus"
         case .models: return "cpu"
+        case .usage: return "creditcard"
         case .settings: return "gearshape"
         }
     }
@@ -67,7 +69,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     static let groups: [(String?, [SidebarItem])] = [
         (nil, [.home, .history]),
         ("Ferramentas", [.transforms, .dictionary, .snippets]),
-        ("Configurar", [.models, .settings]),
+        ("Configurar", [.models, .usage, .settings]),
     ]
 }
 
@@ -90,6 +92,7 @@ struct MainView: View {
                 case .dictionary: DictionaryView(model: model)
                 case .snippets: SnippetsView(model: model)
                 case .models: ModelsView(model: model, manager: model.models)
+                case .usage: UsageView(log: UsageLog.shared)
                 case .settings: SettingsView(model: model)
                 }
             }

@@ -14,6 +14,7 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     private let model = AppModel()
     private let whisper = WhisperServer()
+    private let transcribeEngine = TranscribeEngine()
     private let recorder = AudioRecorder()
     private let overlay = OverlayWindow()
     private lazy var mainWindow = MainWindowController(model: model)
@@ -22,6 +23,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let statusLine = NSMenuItem(title: "Iniciando…", action: nil, keyEquivalent: "")
     private var session: Session?
+    private var previewTask: Task<Void, Never>?
     private var permissionTimer: Timer?
 
     private static let minimumDuration: TimeInterval = 0.35
@@ -31,6 +33,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "Lidiflow")
         buildMenu()
+        buildMainMenu()
         mainWindow.show()
 
         recorder.onLevel = { [weak self] level in
@@ -70,6 +73,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         switch Settings.transcriptionEngine {
         case .cloud:
             whisper.stop()
+            transcribeEngine.unload()
             let provider = Settings.transcriptionProvider
             guard Keychain.key(for: provider) != nil else {
                 setStatus(CloudTranscriber.Failure.missingKey(provider).localizedDescription)
@@ -78,8 +82,17 @@ final class AppController: NSObject, NSApplicationDelegate {
         case .local:
             setStatus("Carregando modelo…")
             do {
-                try await whisper.restart()
+                if ModelManager.selected?.engine == .transcribe {
+                    whisper.stop()
+                    try await transcribeEngine.load(Settings.modelPath)
+                } else {
+                    transcribeEngine.unload()
+                    try await whisper.restart()
+                }
             } catch {
+                // Don't keep a model loaded that's no longer the selected, downloaded one.
+                whisper.stop()
+                transcribeEngine.unload()
                 setStatus(error.localizedDescription)
                 return
             }
@@ -94,6 +107,7 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         whisper.stop()
+        transcribeEngine.unload()
     }
 
     // MARK: - Permissions
@@ -172,6 +186,36 @@ final class AppController: NSObject, NSApplicationDelegate {
         if mode == .command { captureSelection() }
         overlay.show(mode == .command ? .command : .listening)
         play("Pop")
+        startPreview()
+    }
+
+    /// Re-transcribes the last seconds while recording so the pill can show the words as they come.
+    /// Local engines only: with a cloud key every preview would be a billed request. Skipped for the
+    /// slowest Whisper models, whose server can't drop a pass already running when the key is released.
+    private func startPreview() {
+        stopPreview()
+        guard Settings.transcriptionEngine == .local, let local = ModelManager.selected,
+              local.engine == .transcribe || local.speed >= 35 else { return }
+        previewTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(800))
+            while !Task.isCancelled {
+                guard let self, self.session != nil else { return }
+                // Only the tail is visible, so a short window is plenty and keeps each pass fast.
+                let samples = self.recorder.tail(seconds: 10)
+                if samples.count >= Int(AudioRecorder.sampleRate) / 2,
+                   let text = try? await self.transcribe(samples, preview: true), !Task.isCancelled, !text.isEmpty {
+                    self.overlay.state.live = text
+                }
+                try? await Task.sleep(for: .milliseconds(600))
+            }
+        }
+    }
+
+    private func stopPreview() {
+        previewTask?.cancel()
+        previewTask = nil
+        transcribeEngine.cancelPreviews()
+        overlay.state.live = ""
     }
 
     private func switchToCommand() {
@@ -194,6 +238,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private func discardRecording() {
         guard session != nil else { return }
         session = nil
+        stopPreview()
         _ = recorder.stop()
         overlay.show(.hidden)
     }
@@ -224,6 +269,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private func finish() {
         guard let session else { return }
         self.session = nil
+        stopPreview()
         let samples = recorder.stop()
         let duration = Date().timeIntervalSince(session.startedAt)
 
@@ -236,7 +282,7 @@ final class AppController: NSObject, NSApplicationDelegate {
 
         Task { @MainActor in
             do {
-                let spoken = try await transcribe(AudioRecorder.wavData(from: samples))
+                let spoken = try await transcribe(samples)
                 guard !spoken.isEmpty else {
                     overlay.show(.hidden)
                     return
@@ -261,13 +307,20 @@ final class AppController: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func transcribe(_ wav: Data) async throws -> String {
-        let prompt = TextProcessor.whisperPrompt(for: model.dictionary)
+    /// The single path from samples to text. A `preview` pass is cancellable and skips the dictionary hints.
+    private func transcribe(_ samples: [Float], preview: Bool = false) async throws -> String {
+        let language = Settings.language
+        let prompt = preview ? nil : TextProcessor.whisperPrompt(for: model.dictionary)
         switch Settings.transcriptionEngine {
+        case .local where ModelManager.selected?.engine == .transcribe:
+            return preview
+                ? try await transcribeEngine.preview(samples: samples, language: language)
+                : try await transcribeEngine.transcribe(samples: samples, model: Settings.modelPath,
+                                                        language: language, vocabulary: model.dictionary)
         case .local:
-            return try await whisper.transcribe(wav: wav, language: Settings.language, prompt: prompt)
+            return try await whisper.transcribe(wav: AudioRecorder.wavData(from: samples), language: language, prompt: prompt)
         case .cloud:
-            return try await CloudTranscriber.transcribe(wav: wav, language: Settings.language, prompt: prompt)
+            return try await CloudTranscriber.transcribe(wav: AudioRecorder.wavData(from: samples), language: language, prompt: prompt)
         }
     }
 
@@ -276,6 +329,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         case let error as LLM.Failure: return error.localizedDescription
         case let error as CloudTranscriber.Failure: return error.localizedDescription
         case let error as WhisperServer.Failure: return error.localizedDescription
+        case let error as TranscribeEngine.Failure: return error.localizedDescription
         default: return "Falha na transcrição"
         }
     }
@@ -335,6 +389,38 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Sair do Lidiflow", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
+    }
+
+    /// Standard key equivalents (⌘C, ⌘V, ⌘A, ⌘Z, ⌘W…) are dispatched through the main menu,
+    /// so without one text fields in the window ignore them.
+    private func buildMainMenu() {
+        let main = NSMenu()
+
+        let appMenu = NSMenu()
+        appMenu.addItem(NSMenuItem(title: "Ocultar Lidiflow", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"))
+        appMenu.addItem(.separator())
+        appMenu.addItem(NSMenuItem(title: "Sair do Lidiflow", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        main.addItem(withTitle: "Lidiflow", action: nil, keyEquivalent: "").submenu = appMenu
+
+        let edit = NSMenu(title: "Editar")
+        edit.addItem(NSMenuItem(title: "Desfazer", action: Selector(("undo:")), keyEquivalent: "z"))
+        let redo = NSMenuItem(title: "Refazer", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(redo)
+        edit.addItem(.separator())
+        edit.addItem(NSMenuItem(title: "Recortar", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+        edit.addItem(NSMenuItem(title: "Copiar", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        edit.addItem(NSMenuItem(title: "Colar", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        edit.addItem(NSMenuItem(title: "Selecionar Tudo", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+        main.addItem(withTitle: "Editar", action: nil, keyEquivalent: "").submenu = edit
+
+        let window = NSMenu(title: "Janela")
+        window.addItem(NSMenuItem(title: "Minimizar", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"))
+        window.addItem(NSMenuItem(title: "Fechar", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+        main.addItem(withTitle: "Janela", action: nil, keyEquivalent: "").submenu = window
+        NSApp.windowsMenu = window
+
+        NSApp.mainMenu = main
     }
 
     @objc private func openMainWindow() {

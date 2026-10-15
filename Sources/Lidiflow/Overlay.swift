@@ -10,6 +10,8 @@ final class OverlayState: ObservableObject {
 
     @Published var phase: Phase = .hidden
     @Published var level: Float = 0
+    /// Live transcript while recording; the pill shows its end and never grows.
+    @Published var live = ""
 }
 
 /// Small floating pill at the bottom of the screen that never takes focus.
@@ -53,14 +55,28 @@ private struct OverlayView: View {
     var body: some View {
         HStack(spacing: 10) {
             indicator
-            Text(label)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white)
-                .lineLimit(1)
+            if isRecording && !state.live.isEmpty {
+                Text(state.live)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .animation(nil, value: state.live)
+            } else {
+                Text(label)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+            }
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Capsule().fill(Color.black.opacity(0.82)))
+    }
+
+    private var isRecording: Bool {
+        [.listening, .handsFree, .command].contains(state.phase)
     }
 
     @ViewBuilder private var indicator: some View {

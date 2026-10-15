@@ -16,7 +16,7 @@ struct ModelsView: View {
                 subtitle: "Transforma sua voz em texto",
                 local: Binding(get: { model.transcriptionEngine == .local },
                                set: { model.transcriptionEngine = $0 ? .local : .cloud }),
-                localDetail: "Whisper · privado e grátis",
+                localDetail: "No seu Mac · privado e grátis",
                 cloudDetail: "OpenAI ou Groq"
             ) {
                 if model.transcriptionEngine == .local {
@@ -244,6 +244,7 @@ private struct APIKeyRow: View {
     let provider: LLMProvider
     @State private var key = ""
     @State private var editing = false
+    @State private var failed = false
 
     private var saved: Bool { model.savedKeys.contains(provider) }
 
@@ -251,7 +252,11 @@ private struct APIKeyRow: View {
         ControlRow {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Chave de API").foregroundStyle(Theme.text)
-                if saved && !editing {
+                if failed {
+                    Text("O Keychain não permitiu salvar. Tente de novo e clique em Permitir.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.orange)
+                } else if saved && !editing {
                     Text("Guardada no Keychain do macOS").font(.system(size: 12)).foregroundStyle(Theme.secondary)
                 } else if let url = provider.keyURL {
                     Link("Onde pego minha chave?", destination: url)
@@ -269,7 +274,7 @@ private struct APIKeyRow: View {
                     .font(.system(size: 13, weight: .medium))
                     Spacer()
                     Button("Trocar") { editing = true }.buttonStyle(SecondaryButtonStyle())
-                    Button { model.saveKey("", for: provider) } label: { Image(systemName: "trash") }
+                    Button { failed = !model.saveKey("", for: provider) } label: { Image(systemName: "trash") }
                         .buttonStyle(.plain)
                         .foregroundStyle(Theme.secondary)
                         .help("Remover chave")
@@ -293,12 +298,14 @@ private struct APIKeyRow: View {
         .onChange(of: provider) { _, _ in
             key = ""
             editing = false
+            failed = false
         }
     }
 
     private func save() {
         guard !key.isEmpty else { return }
-        model.saveKey(key, for: provider)
+        failed = !model.saveKey(key, for: provider)
+        guard !failed else { return }
         key = ""
         editing = false
     }
@@ -384,12 +391,13 @@ private struct AIModelCard: View {
     @ViewBuilder private var cloudRows: some View {
         ProviderRow(selection: $model.llmProvider, providers: Self.cloudProviders)
         APIKeyRow(model: model, provider: provider)
-        ControlRow(divider: error != nil) {
+        ControlRow {
             RowTitle(title: "Modelo",
-                     detail: fetched.isEmpty ? nil : "\(fetched.count) modelos disponíveis na sua conta")
+                     detail: fetched.isEmpty ? nil : "\(fetched.count) modelos de texto na sua conta")
         } control: {
             ModelMenu(selection: $model.llmModel, options: modelOptions, loading: loading)
         }
+        SelectedModelRow(id: model.llmModel, divider: error != nil)
         if let error { ErrorRow(message: error) }
     }
 
@@ -408,7 +416,7 @@ private struct AIModelCard: View {
 }
 
 private struct LocalModelRow: View {
-    let item: WhisperModel
+    let item: LocalModel
     @ObservedObject var model: AppModel
     @ObservedObject var manager: ModelManager
     let divider: Bool
@@ -427,6 +435,8 @@ private struct LocalModelRow: View {
                     Text("\(item.detail) · \(item.size)").font(.system(size: 12)).foregroundStyle(Theme.secondary)
                 }
                 Spacer()
+                ScoreBars(accuracy: item.accuracy, speed: item.speed)
+                    .padding(.trailing, 8)
                 if let progress = manager.progress[item.id] {
                     ProgressView(value: progress).frame(width: 110)
                     Text(progress.formatted(.percent.precision(.fractionLength(0))))
@@ -438,19 +448,12 @@ private struct LocalModelRow: View {
                         .foregroundStyle(Theme.secondary)
                 } else if isInstalled {
                     if isSelected {
-                        Text("Em uso")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Theme.blue)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Theme.blueTint))
+                        InUseBadge()
                     } else {
                         Button("Usar") { model.localModel = item.id }
                             .buttonStyle(SecondaryButtonStyle())
-                        Button { manager.delete(item) } label: { Image(systemName: "trash") }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(Theme.secondary)
                     }
+                    UninstallButton(name: item.name, size: item.size, inUse: isSelected) { model.uninstall(item) }
                 } else {
                     Button { manager.download(item) } label: { Label("Baixar", systemImage: "arrow.down") }
                         .buttonStyle(SecondaryButtonStyle())
@@ -459,6 +462,56 @@ private struct LocalModelRow: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             if divider { Divider().overlay(Theme.border).padding(.leading, 43) }
+        }
+    }
+}
+
+/// Price and intelligence × speed of the chosen cloud model.
+private struct SelectedModelRow: View {
+    let id: String
+    let divider: Bool
+
+    var body: some View {
+        SettingRow(title: "Custo", detail: priceDetail, divider: divider) {
+            if let rating = ModelCatalog.rating(for: id) {
+                ScoreBars(accuracy: rating.intelligence, speed: rating.speed, quality: "inteligência")
+            } else {
+                Text("sem nota para este modelo").font(.system(size: 12)).foregroundStyle(Theme.secondary)
+            }
+        }
+    }
+
+    private var priceDetail: String {
+        guard let price = ModelCatalog.price(for: id) else { return "Preço não cadastrado: o gasto não entra em Gastos" }
+        func usd(_ value: Double) -> String { value.formatted(.currency(code: "USD").precision(.fractionLength(2))) }
+        return "\(usd(price.input)) entrada · \(usd(price.output)) saída, por 1M tokens"
+    }
+}
+
+/// Precision and speed as two short bars, so models can be compared at a glance.
+private struct ScoreBars: View {
+    let accuracy: Int
+    let speed: Int
+    /// "precisão" for transcription, "inteligência" for the AI models.
+    var quality = "precisão"
+
+    var body: some View {
+        Grid(alignment: .trailing, horizontalSpacing: 8, verticalSpacing: 5) {
+            row(quality, accuracy)
+            row("velocidade", speed)
+        }
+        .help("\(quality.capitalized) \(accuracy)/100 · Velocidade \(speed)/100")
+    }
+
+    private func row(_ label: String, _ value: Int) -> some View {
+        GridRow {
+            Text(label).font(.system(size: 11)).foregroundStyle(Theme.secondary)
+            Capsule()
+                .fill(Theme.border)
+                .frame(width: 64, height: 5)
+                .overlay(alignment: .leading) {
+                    Capsule().fill(Theme.blue).frame(width: 64 * CGFloat(value) / 100)
+                }
         }
     }
 }
@@ -482,6 +535,10 @@ private struct OllamaModelRow: View {
                     Text("\(item.detail) · \(item.size)").font(.system(size: 12)).foregroundStyle(Theme.secondary)
                 }
                 Spacer()
+                if let rating = ModelCatalog.rating(for: item.id) {
+                    ScoreBars(accuracy: rating.intelligence, speed: rating.speed, quality: "inteligência")
+                        .padding(.trailing, 8)
+                }
                 if let progress = ollama.progress[item.id] {
                     ProgressView(value: progress).frame(width: 110)
                     Text(progress.formatted(.percent.precision(.fractionLength(0))))
@@ -496,9 +553,9 @@ private struct OllamaModelRow: View {
                         InUseBadge()
                     } else {
                         Button("Usar") { model.llmModel = item.id }.buttonStyle(SecondaryButtonStyle())
-                        Button { Task { await ollama.delete(item.id) } } label: { Image(systemName: "trash") }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(Theme.secondary)
+                    }
+                    UninstallButton(name: item.name, size: item.size, inUse: selected) {
+                        Task { await model.uninstallOllama(item.id) }
                     }
                 } else {
                     Button { ollama.pull(item.id) } label: { Label("Baixar", systemImage: "arrow.down") }
@@ -521,12 +578,44 @@ private struct InstalledOllamaRow: View {
 
     var body: some View {
         SettingRow(title: name, detail: "Já instalado no Ollama") {
-            if model.llmModel == name || model.llmModel + ":latest" == name {
+            let inUse = model.llmModel == name || model.llmModel + ":latest" == name
+            if inUse {
                 InUseBadge()
             } else {
                 Button("Usar") { model.llmModel = name }.buttonStyle(SecondaryButtonStyle())
             }
+            UninstallButton(name: name, size: nil, inUse: inUse) {
+                Task { await model.uninstallOllama(name) }
+            }
         }
+    }
+}
+
+/// Trash button that asks before deleting a downloaded model from disk.
+private struct UninstallButton: View {
+    let name: String
+    let size: String?
+    let inUse: Bool
+    let action: () -> Void
+    @State private var confirming = false
+
+    var body: some View {
+        Button { confirming = true } label: { Image(systemName: "trash") }
+            .buttonStyle(.plain)
+            .foregroundStyle(Theme.secondary)
+            .help("Desinstalar")
+            .confirmationDialog("Desinstalar \(name)?", isPresented: $confirming) {
+                Button("Desinstalar", role: .destructive, action: action)
+            } message: {
+                Text(message)
+            }
+    }
+
+    private var message: String {
+        var parts = [size.map { "Libera \($0) do disco." } ?? "Apaga o modelo do disco."]
+        if inUse { parts.append("Ele está em uso: o Lidiflow passa para outro modelo baixado, se houver.") }
+        parts.append("Dá para baixar de novo depois.")
+        return parts.joined(separator: " ")
     }
 }
 
