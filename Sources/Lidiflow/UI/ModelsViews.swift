@@ -448,19 +448,12 @@ private struct LocalModelRow: View {
                         .foregroundStyle(Theme.secondary)
                 } else if isInstalled {
                     if isSelected {
-                        Text("Em uso")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Theme.blue)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Theme.blueTint))
+                        InUseBadge()
                     } else {
                         Button("Usar") { model.localModel = item.id }
                             .buttonStyle(SecondaryButtonStyle())
-                        Button { manager.delete(item) } label: { Image(systemName: "trash") }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(Theme.secondary)
                     }
+                    UninstallButton(name: item.name, size: item.size, inUse: isSelected) { model.uninstall(item) }
                 } else {
                     Button { manager.download(item) } label: { Label("Baixar", systemImage: "arrow.down") }
                         .buttonStyle(SecondaryButtonStyle())
@@ -560,9 +553,9 @@ private struct OllamaModelRow: View {
                         InUseBadge()
                     } else {
                         Button("Usar") { model.llmModel = item.id }.buttonStyle(SecondaryButtonStyle())
-                        Button { Task { await ollama.delete(item.id) } } label: { Image(systemName: "trash") }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(Theme.secondary)
+                    }
+                    UninstallButton(name: item.name, size: item.size, inUse: selected) {
+                        Task { await model.uninstallOllama(item.id) }
                     }
                 } else {
                     Button { ollama.pull(item.id) } label: { Label("Baixar", systemImage: "arrow.down") }
@@ -585,12 +578,44 @@ private struct InstalledOllamaRow: View {
 
     var body: some View {
         SettingRow(title: name, detail: "Já instalado no Ollama") {
-            if model.llmModel == name || model.llmModel + ":latest" == name {
+            let inUse = model.llmModel == name || model.llmModel + ":latest" == name
+            if inUse {
                 InUseBadge()
             } else {
                 Button("Usar") { model.llmModel = name }.buttonStyle(SecondaryButtonStyle())
             }
+            UninstallButton(name: name, size: nil, inUse: inUse) {
+                Task { await model.uninstallOllama(name) }
+            }
         }
+    }
+}
+
+/// Trash button that asks before deleting a downloaded model from disk.
+private struct UninstallButton: View {
+    let name: String
+    let size: String?
+    let inUse: Bool
+    let action: () -> Void
+    @State private var confirming = false
+
+    var body: some View {
+        Button { confirming = true } label: { Image(systemName: "trash") }
+            .buttonStyle(.plain)
+            .foregroundStyle(Theme.secondary)
+            .help("Desinstalar")
+            .confirmationDialog("Desinstalar \(name)?", isPresented: $confirming) {
+                Button("Desinstalar", role: .destructive, action: action)
+            } message: {
+                Text(message)
+            }
+    }
+
+    private var message: String {
+        var parts = [size.map { "Libera \($0) do disco." } ?? "Apaga o modelo do disco."]
+        if inUse { parts.append("Ele está em uso: o Lidiflow passa para outro modelo baixado, se houver.") }
+        parts.append("Dá para baixar de novo depois.")
+        return parts.joined(separator: " ")
     }
 }
 

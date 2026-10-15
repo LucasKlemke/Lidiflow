@@ -90,6 +90,9 @@ final class AppController: NSObject, NSApplicationDelegate {
                     try await whisper.restart()
                 }
             } catch {
+                // Don't keep a model loaded that's no longer the selected, downloaded one.
+                whisper.stop()
+                transcribeEngine.unload()
                 setStatus(error.localizedDescription)
                 return
             }

@@ -244,6 +244,26 @@ final class AppModel: ObservableObject {
         try? JSONEncoder().encode(transforms).write(to: transformsURL, options: .atomic)
     }
 
+    /// Deletes a downloaded transcription model. If it was in use, switches to another downloaded
+    /// one, or reloads the engine so the status says no model is available.
+    func uninstall(_ item: LocalModel) {
+        models.delete(item)
+        guard localModel == item.id else { return }
+        if let other = ModelManager.catalog.first(where: { models.installed.contains($0.id) }) {
+            localModel = other.id
+        } else {
+            onEngineChange()
+        }
+    }
+
+    /// Deletes an Ollama model; if it was in use, switches to another installed one.
+    @MainActor
+    func uninstallOllama(_ id: String) async {
+        let inUse = llmModel == id || llmModel + ":latest" == id
+        await ollama.delete(id)
+        if inUse, llmProvider == .ollama, let other = ollama.installed.first { llmModel = other }
+    }
+
     /// Returns false when the Keychain refused the change (e.g. access denied); nothing is changed then.
     @discardableResult
     func saveKey(_ key: String, for provider: LLMProvider) -> Bool {

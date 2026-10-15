@@ -80,8 +80,9 @@ final class TranscribeEngine {
     // MARK: - On the queues
 
     private func loadIfNeeded(_ url: URL) throws {
-        guard loadedPath != url.path || session == nil else { return }
+        // Checked first so a model deleted while loaded stops being used.
         guard FileManager.default.fileExists(atPath: url.path) else { throw Failure.modelNotFound }
+        guard loadedPath != url.path || session == nil else { return }
         freeModel()
         Self.backends
         var model: OpaquePointer?
