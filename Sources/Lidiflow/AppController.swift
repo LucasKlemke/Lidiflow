@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import Combine
 
 /// Menu bar app that wires the global shortcuts to recording, transcription and insertion.
 final class AppController: NSObject, NSApplicationDelegate {
@@ -25,6 +26,8 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var session: Session?
     private var previewTask: Task<Void, Never>?
     private var permissionTimer: Timer?
+    private let updateItem = NSMenuItem(title: "", action: #selector(installUpdate), keyEquivalent: "")
+    private var updateWatch: AnyCancellable?
 
     private static let minimumDuration: TimeInterval = 0.35
 
@@ -380,10 +383,20 @@ final class AppController: NSObject, NSApplicationDelegate {
         model.status = text
     }
 
+    @MainActor
     private func buildMenu() {
         let menu = NSMenu()
         statusLine.isEnabled = false
         menu.addItem(statusLine)
+        // Shown only while a newer version is on GitHub.
+        updateItem.target = self
+        updateItem.isHidden = true
+        menu.addItem(updateItem)
+        updateWatch = Updater.shared.$available.sink { [weak self] release in
+            self?.updateItem.isHidden = release == nil
+            self?.updateItem.title = release.map { "Atualizar para a versão \($0.version)…" } ?? ""
+        }
+        Updater.shared.start()
         menu.addItem(.separator())
 
         let open = NSMenuItem(title: "Abrir Lidiflow", action: #selector(openMainWindow), keyEquivalent: "o")
@@ -429,6 +442,11 @@ final class AppController: NSObject, NSApplicationDelegate {
         NSApp.windowsMenu = window
 
         NSApp.mainMenu = main
+    }
+
+    @MainActor @objc private func installUpdate() {
+        mainWindow.show()
+        Task { await Updater.shared.install() }
     }
 
     @objc private func openMainWindow() {

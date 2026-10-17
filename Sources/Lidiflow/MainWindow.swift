@@ -143,6 +143,8 @@ private struct Sidebar: View {
 
             Spacer()
 
+            UpdateCard(updater: .shared)
+
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Circle()
@@ -171,6 +173,50 @@ private struct Sidebar: View {
         .frame(width: 220)
         .frame(maxHeight: .infinity)
         .background(Theme.sidebar)
+    }
+}
+
+/// Shown above the status card while a newer version is on GitHub: one click downloads and installs it.
+private struct UpdateCard: View {
+    @ObservedObject var updater: Updater
+
+    var body: some View {
+        if let release = updater.available {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.down.circle.fill").foregroundStyle(Theme.blue)
+                    Text("Nova versão \(release.version)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                }
+                switch updater.phase {
+                case .downloading(let progress):
+                    ProgressView(value: progress)
+                    Text("Baixando… \(progress.formatted(.percent.precision(.fractionLength(0))))")
+                        .font(.system(size: 11)).foregroundStyle(Theme.secondary)
+                case .installing:
+                    ProgressView().controlSize(.small)
+                    Text("Instalando: o app reabre sozinho").font(.system(size: 11)).foregroundStyle(Theme.secondary)
+                case .idle, .failed:
+                    if case .failed(let message) = updater.phase {
+                        Text(message).font(.system(size: 11)).foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    HStack(spacing: 8) {
+                        Button("Atualizar") { Task { await updater.install() } }
+                            .buttonStyle(PrimaryButtonStyle())
+                        Link("O que mudou", destination: release.notesURL)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.blue)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.blueTint))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.blue.opacity(0.3)))
+            .padding(.horizontal, 12)
+        }
     }
 }
 
