@@ -19,7 +19,14 @@ final class AppModel: ObservableObject {
     @Published private(set) var microphoneGranted = false
 
     @Published var language = Settings.language {
-        didSet { Settings.language = language }
+        didSet {
+            Settings.language = language
+            // Apple's model has files per language: fetch the new one now rather than on the next dictation.
+            if ModelManager.selected?.engine == .apple {
+                models.refresh()
+                if transcriptionEngine == .local { onEngineChange() }
+            }
+        }
     }
     @Published var shortcuts = Settings.shortcuts {
         didSet {

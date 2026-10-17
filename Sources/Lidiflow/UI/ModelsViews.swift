@@ -453,7 +453,10 @@ private struct LocalModelRow: View {
                         Button("Usar") { model.localModel = item.id }
                             .buttonStyle(SecondaryButtonStyle())
                     }
-                    UninstallButton(name: item.name, size: item.size, inUse: isSelected) { model.uninstall(item) }
+                    // macOS manages Apple's files, so there's nothing for the app to delete.
+                    if item.engine != .apple {
+                        UninstallButton(name: item.name, size: item.size, inUse: isSelected) { model.uninstall(item) }
+                    }
                 } else {
                     Button { manager.download(item) } label: { Label("Baixar", systemImage: "arrow.down") }
                         .buttonStyle(SecondaryButtonStyle())

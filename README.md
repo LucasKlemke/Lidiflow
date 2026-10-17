@@ -48,7 +48,7 @@ Na aba **Modelos**, cada parte responde a uma pergunta: *No meu Mac* ou *Minha c
 
 | | No meu Mac (grátis) | Minha conta (chave de API) |
 |---|---|---|
-| **Transcrição** | Nemotron Streaming 3.5, Parakeet TDT v3, Qwen3-ASR, Cohere Transcribe e Whisper (Base a Large v3), com download dentro do app | OpenAI (`gpt-4o-transcribe`…) ou Groq (`whisper-large-v3-turbo`…) |
+| **Transcrição** | modelo da Apple (macOS 26+, baixado e gerenciado pelo próprio macOS), Nemotron Streaming 3.5, Parakeet TDT v3, Qwen3-ASR, Cohere Transcribe e Whisper (Base a Large v3), com download dentro do app | OpenAI (`gpt-4o-transcribe`…) ou Groq (`whisper-large-v3-turbo`…) |
 | **IA** (ajuste, comando, transforms) | Ollama: Qwen 2.5, Llama 3.x, Mistral, Gemma 2, Phi-3… | OpenAI, Anthropic, Groq, Gemini ou xAI |
 
 As chaves de API ficam guardadas no **Keychain do macOS**, nunca em arquivos.

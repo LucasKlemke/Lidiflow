@@ -82,10 +82,17 @@ final class AppController: NSObject, NSApplicationDelegate {
         case .local:
             setStatus("Carregando modelo…")
             do {
-                if ModelManager.selected?.engine == .transcribe {
+                switch ModelManager.selected?.engine {
+                case .transcribe:
                     whisper.stop()
                     try await transcribeEngine.load(Settings.modelPath)
-                } else {
+                case .apple:
+                    whisper.stop()
+                    transcribeEngine.unload()
+                    // Downloads the current language's files the first time, if macOS doesn't have them.
+                    try await AppleSpeech.install(language: Settings.language)
+                    model.models.refresh()
+                default:
                     transcribeEngine.unload()
                     try await whisper.restart()
                 }
@@ -195,7 +202,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private func startPreview() {
         stopPreview()
         guard Settings.transcriptionEngine == .local, let local = ModelManager.selected,
-              local.engine == .transcribe || local.speed >= 35 else { return }
+              local.engine != .whisper || local.speed >= 35 else { return }
         previewTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(800))
             while !Task.isCancelled {
@@ -312,6 +319,9 @@ final class AppController: NSObject, NSApplicationDelegate {
         let language = Settings.language
         let prompt = preview ? nil : TextProcessor.whisperPrompt(for: model.dictionary)
         switch Settings.transcriptionEngine {
+        case .local where ModelManager.selected?.engine == .apple:
+            return try await AppleSpeech.transcribe(samples: samples, language: language,
+                                                    vocabulary: preview ? [] : model.dictionary)
         case .local where ModelManager.selected?.engine == .transcribe:
             return preview
                 ? try await transcribeEngine.preview(samples: samples, language: language)
@@ -330,6 +340,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         case let error as CloudTranscriber.Failure: return error.localizedDescription
         case let error as WhisperServer.Failure: return error.localizedDescription
         case let error as TranscribeEngine.Failure: return error.localizedDescription
+        case let error as AppleSpeech.Failure: return error.localizedDescription
         default: return "Falha na transcrição"
         }
     }

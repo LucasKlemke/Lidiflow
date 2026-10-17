@@ -2,8 +2,9 @@ import Foundation
 
 /// A speech model that runs on this Mac.
 struct LocalModel: Identifiable, Hashable {
-    /// whisper.cpp ggml models run in `whisper-server`; GGUF models run in-process via transcribe.cpp.
-    enum Engine { case whisper, transcribe }
+    /// whisper.cpp ggml models run in `whisper-server`; GGUF models run in-process via transcribe.cpp;
+    /// Apple's model runs through the Speech framework, with files macOS manages.
+    enum Engine { case whisper, transcribe, apple }
 
     let id: String
     let name: String
@@ -27,7 +28,7 @@ struct LocalModel: Identifiable, Hashable {
 
 /// Downloads and tracks local speech models in Application Support.
 final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate {
-    static let catalog = [
+    static let catalog = (AppleSpeech.isSupported ? [AppleSpeech.model] : []) + [
         LocalModel(id: "ggml-base.bin", name: "Base", detail: "Muito rápido, menos preciso", size: "142 MB", speed: 99, accuracy: 71),
         LocalModel(id: "ggml-small.bin", name: "Small", detail: "Rápido, bom para frases curtas", size: "466 MB", speed: 78, accuracy: 80),
         LocalModel(id: "ggml-large-v3-turbo-q5_0.bin", name: "Large v3 Turbo (comprimido)", detail: "Recomendado: ótima precisão e rápido", size: "547 MB", speed: 40, accuracy: 87),
@@ -56,6 +57,7 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
     @Published private(set) var lastError: String?
 
     private var tasks: [String: URLSessionDownloadTask] = [:]
+    private var appleInstall: Task<Void, Never>?
     private lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
 
     override init() {
@@ -64,12 +66,22 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
     }
 
     func refresh() {
-        installed = Set(Self.catalog.map(\.id).filter {
+        installed = Set(Self.catalog.filter { $0.engine != .apple }.map(\.id).filter {
             FileManager.default.fileExists(atPath: Settings.modelsDirectory.appendingPathComponent($0).path)
         })
+        guard AppleSpeech.isSupported else { return }
+        // Per language: switching to one macOS hasn't downloaded shows "Baixar" again.
+        Task { @MainActor in
+            if await AppleSpeech.isInstalled(language: Settings.language) {
+                installed.insert(AppleSpeech.model.id)
+            } else {
+                installed.remove(AppleSpeech.model.id)
+            }
+        }
     }
 
     func download(_ model: LocalModel) {
+        if model.engine == .apple { return installApple() }
         guard tasks[model.id] == nil else { return }
         lastError = nil
         let task = session.downloadTask(with: model.url)
@@ -80,6 +92,12 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
     }
 
     func cancel(_ model: LocalModel) {
+        if model.engine == .apple {
+            appleInstall?.cancel()
+            appleInstall = nil
+            progress.removeValue(forKey: model.id)
+            return
+        }
         tasks.removeValue(forKey: model.id)?.cancel()
         progress.removeValue(forKey: model.id)
     }
@@ -87,6 +105,26 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
     func delete(_ model: LocalModel) {
         try? FileManager.default.removeItem(at: Settings.modelsDirectory.appendingPathComponent(model.id))
         refresh()
+    }
+
+    /// macOS downloads Apple's model for the current language; the app only asks and shows the progress.
+    private func installApple() {
+        guard appleInstall == nil else { return }
+        let id = AppleSpeech.model.id
+        lastError = nil
+        progress[id] = 0
+        appleInstall = Task { @MainActor in
+            do {
+                try await AppleSpeech.install(language: Settings.language) { value in
+                    Task { @MainActor in if self.progress[id] != nil { self.progress[id] = value } }
+                }
+            } catch where !Task.isCancelled {
+                lastError = error.localizedDescription
+            } catch {}
+            appleInstall = nil
+            progress.removeValue(forKey: id)
+            refresh()
+        }
     }
 
     // MARK: - URLSessionDownloadDelegate
