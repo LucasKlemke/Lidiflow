@@ -10,6 +10,16 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/LucasKlemke/Lidiflow/releases/latest/download/Lidiflow.dmg"><img src="https://img.shields.io/badge/Baixar%20para%20Mac-macOS%2014%2B%20%C2%B7%20Intel%20e%20Apple%20Silicon-1F6BFF?style=for-the-badge&logo=apple&logoColor=white" alt="Baixar o Lidiflow para Mac" height="44"></a>
+  &nbsp;
+  <a href="#windows"><img src="https://img.shields.io/badge/Windows-em%20breve-9C9CA3?style=for-the-badge&logo=windows&logoColor=white" alt="Lidiflow para Windows: em breve" height="44"></a>
+</p>
+
+<p align="center">
+  <sub>Grátis · sem cadastro · assinado e verificado pela Apple · <a href="#instalar-no-mac">como instalar em 3 passos</a></sub>
+</p>
+
+<p align="center">
   <img src="docs/images/transforms.png" alt="Tela de Transforms do Lidiflow">
 </p>
 
@@ -21,7 +31,7 @@ O Lidiflow é um app de ditado parecido com o [Wispr Flow](https://wisprflow.ai)
 
 A diferença é que ele é **gratuito** e você escolhe onde a IA roda:
 
-- **No seu Mac:** transcrição com [whisper.cpp](https://github.com/ggml-org/whisper.cpp) e IA com [Ollama](https://ollama.com). Privado e sem custo.
+- **No seu Mac:** a transcrição roda no próprio app (modelo da Apple, Parakeet, Nemotron e outros), sem instalar nada. Privado e sem custo. Para a IA local, use o [Ollama](https://ollama.com).
 - **Na sua conta:** use a sua chave de API da OpenAI, Anthropic (Claude), Groq, Google Gemini ou xAI (Grok).
 
 > O Lidiflow é um projeto independente, escrito do zero em Swift. Não usa código nem recursos do Wispr Flow e não tem relação com a Wispr.
@@ -72,66 +82,74 @@ As chaves de API ficam guardadas no **Keychain do macOS**, nunca em arquivos.
 
 Todos podem ser trocados em **Ajustes → Atalhos**.
 
-## Baixar
+## Instalar no Mac
 
-Requisitos: macOS 14 ou superior (Intel ou Apple Silicon).
+<table>
+  <tr>
+    <td align="center" width="33%"><h3>1</h3><b>Baixe</b></td>
+    <td align="center" width="33%"><h3>2</h3><b>Arraste para Aplicativos</b></td>
+    <td align="center" width="33%"><h3>3</h3><b>Abra e siga a tela de boas-vindas</b></td>
+  </tr>
+  <tr>
+    <td valign="top">Clique em <a href="https://github.com/LucasKlemke/Lidiflow/releases/latest/download/Lidiflow.dmg"><b>Baixar para Mac</b></a>. Vem sempre a versão mais recente.</td>
+    <td valign="top">Abra o <code>Lidiflow.dmg</code> e arraste o ícone do Lidiflow para a pasta <b>Aplicativos</b>.</td>
+    <td valign="top">Abra o Lidiflow em Aplicativos. Clique em <b>Permitir</b> no microfone e em <b>Abrir Ajustes</b> na Acessibilidade (ative o Lidiflow na lista). A transcrição baixa sozinha.</td>
+  </tr>
+</table>
 
-1. **[Baixe o Lidiflow.dmg](https://github.com/LucasKlemke/Lidiflow/releases/latest/download/Lidiflow.dmg)** (sempre a versão mais recente), abra e arraste o **Lidiflow** para **Aplicativos**. Versões anteriores e o `.zip` ficam na [página de releases](https://github.com/LucasKlemke/Lidiflow/releases).
-2. O app não é assinado com certificado da Apple, então o macOS bloqueia a primeira abertura. Rode no Terminal:
+Pronto: **segure `Fn`, fale e solte.** O texto aparece onde o cursor estiver.
 
-   ```sh
-   xattr -dr com.apple.quarantine /Applications/Lidiflow.app
-   ```
+Requisitos: macOS 14 ou superior, Intel ou Apple Silicon. Não precisa instalar mais nada nem usar o Terminal.
 
-   Ou tente abrir uma vez e depois vá em Ajustes do Sistema → Privacidade e Segurança → **Abrir Mesmo Assim**.
-3. Os modelos Nemotron, Parakeet, Qwen3-ASR e Cohere rodam no próprio app, sem instalar nada. Para os modelos Whisper, instale o whisper.cpp com o [Homebrew](https://brew.sh) (e, se quiser IA local, o Ollama):
+<details>
+<summary><b>Problemas na instalação?</b></summary>
 
-   ```sh
-   brew install whisper-cpp
-   brew install ollama   # opcional
-   ```
+- **O macOS pergunta se quer abrir um app baixado da internet:** é o aviso normal da primeira abertura. Clique em **Abrir**. O Lidiflow é assinado e verificado (notarizado) pela Apple.
+- **A tecla `Fn` abre os emojis ou o ditado do macOS:** em Ajustes do Sistema → Teclado, deixe **"Ao pressionar 🌐"** como **Não fazer nada**.
+- **Não cola o texto:** confira se o Lidiflow está ativado em Ajustes do Sistema → Privacidade e Segurança → **Acessibilidade**.
+- **Versões anteriores:** na [página de releases](https://github.com/LucasKlemke/Lidiflow/releases).
 
-   Quem for usar só a chave de API pode pular este passo.
+</details>
 
-### Windows
+<details>
+<summary><b>Opcional, para usuários avançados</b></summary>
 
-Há uma versão para Windows 10 e 11 em [`windows/`](windows/README.md), em C# / WPF, com os mesmos recursos. Por enquanto ela é compilada a partir do código: veja as instruções no [README do Windows](windows/README.md).
+- **Modelos Whisper:** precisam do whisper.cpp, instalado com o [Homebrew](https://brew.sh): `brew install whisper-cpp`. Os outros modelos rodam no próprio app.
+- **IA local** (ajuste de texto, modo comando e transforms sem chave de API): instale o [Ollama](https://ollama.com/download). Com uma chave de API (OpenAI, Anthropic, Groq, Gemini ou xAI), não precisa.
+
+</details>
+
+## Windows
+
+<p>
+  <img src="https://img.shields.io/badge/Windows-em%20breve-9C9CA3?style=for-the-badge&logo=windows&logoColor=white" alt="Lidiflow para Windows: em breve" height="36">
+</p>
+
+O instalador para Windows ainda não está disponível. Existe uma versão para Windows 10 e 11 em [`windows/`](windows/README.md) (C# / WPF), que por enquanto só pode ser compilada a partir do código: veja o [README do Windows](windows/README.md).
 
 ## Compilar do código
 
-Requisitos: macOS 14 ou superior, Xcode 16+ (Swift 5.10+) e [Homebrew](https://brew.sh).
+Requisitos: macOS 14 ou superior e Xcode 16+ (Swift 5.10+).
 
 ```sh
-# 1. Transcrição local
-brew install whisper-cpp
-
-# 2. (Opcional) IA local para ajuste, comando e transforms
-brew install ollama
-
-# 3. Compilar e instalar em /Applications
 git clone https://github.com/LucasKlemke/Lidiflow.git
 cd Lidiflow
 ./build.sh --install
 open /Applications/Lidiflow.app
 ```
 
-No primeiro uso:
-
-1. Permita o Lidiflow em **Microfone** e **Acessibilidade** (Ajustes do Sistema → Privacidade e Segurança).
-2. Em **Modelos**, baixe um modelo de transcrição (recomendado: *Large v3 Turbo (comprimido)*) ou cole uma chave de API.
-3. Se usar `Fn`: em Ajustes do Sistema → Teclado, deixe "Ao pressionar 🌐" como **Não fazer nada**.
-4. Segure `Fn` e fale.
+Na primeira abertura, a tela de boas-vindas pede as permissões e prepara a transcrição. Para vê-la de novo: `open /Applications/Lidiflow.app --args --onboarding` (ou `--onboarding-demo`, como num Mac novo).
 
 ## Como funciona
 
 ```
-tecla segurada ─▶ AVAudioEngine (16 kHz) ─▶ whisper-server local / API de transcrição
+tecla segurada ─▶ AVAudioEngine (16 kHz) ─▶ modelo local (Apple, transcribe.cpp, whisper.cpp) / API
                                                      │
                      colar no app em foco ◀─ dicionário, snippets ◀─ ajuste / transform com IA
 ```
 
 - App nativo em **Swift + SwiftUI**, sem Electron. Os atalhos usam um `CGEventTap`, e o texto é inserido via clipboard + `⌘V`, com o clipboard restaurado logo depois.
-- A transcrição local roda o `whisper-server` do whisper.cpp em segundo plano, com o modelo sempre carregado para responder rápido.
+- A transcrição local usa o SpeechAnalyzer da Apple (macOS 26+), o [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) dentro do app (modelos GGUF como Parakeet e Nemotron, na GPU via Metal) ou o `whisper-server` do whisper.cpp, sempre com o modelo carregado para responder rápido.
 - O histórico, o dicionário e os transforms ficam em `~/Library/Application Support/Lidiflow`.
 
 ## Desenvolvimento
@@ -143,7 +161,7 @@ swift build          # compila
 ./build.sh --release # app universal (Intel + Apple Silicon) em dist/Lidiflow-x.y.z.zip e dist/Lidiflow.dmg (requer: brew install create-dmg)
 ```
 
-O build é assinado ad-hoc, com o identificador `com.lidiflow.app` fixo, para o macOS manter as permissões entre builds.
+Com um certificado *Developer ID Application* no Keychain, o `build.sh` assina o app com ele (hardened runtime), e o `--release` também envia o `.dmg` para a notarização da Apple, usando o perfil `lidiflow` do `xcrun notarytool store-credentials`. Sem certificado, o build é assinado ad-hoc, com o identificador `com.lidiflow.app` fixo, para o macOS manter as permissões entre builds.
 
 ## Licença
 
