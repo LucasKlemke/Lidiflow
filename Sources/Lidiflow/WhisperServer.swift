@@ -21,6 +21,9 @@ final class WhisperServer {
 
     private static let searchPaths = ["/opt/homebrew/bin/whisper-server", "/usr/local/bin/whisper-server"]
 
+    /// Whisper models need whisper.cpp from Homebrew; the others run inside the app.
+    static var isInstalled: Bool { searchPaths.contains(where: FileManager.default.isExecutableFile) }
+
     func start() async throws {
         if process?.isRunning == true { return }
         guard let binary = Self.searchPaths.first(where: FileManager.default.isExecutableFile) else {

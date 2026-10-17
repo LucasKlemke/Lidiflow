@@ -96,9 +96,10 @@ struct SettingsView: View {
 
 /// "Padrão do sistema" follows whatever macOS uses; a chosen microphone that's unplugged stays listed,
 /// marked as disconnected, and the recorder falls back to the default until it's back.
-private struct MicrophonePicker: View {
+struct MicrophonePicker: View {
     @Binding var selection: String?
     @ObservedObject var list: MicrophoneList
+    var width: CGFloat = 220
 
     var body: some View {
         Picker("", selection: $selection) {
@@ -110,13 +111,13 @@ private struct MicrophonePicker: View {
             }
         }
         .labelsHidden()
-        .frame(width: 220)
+        .frame(width: width)
         .onAppear { list.refresh() }
     }
 }
 
 /// Live waveform of the chosen microphone while this page is open.
-private struct MicrophoneTest: View {
+struct MicrophoneTest: View {
     let selection: String?
     @StateObject private var monitor = MicrophoneMonitor()
 

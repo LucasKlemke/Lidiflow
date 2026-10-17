@@ -11,35 +11,46 @@ struct ModelsView: View {
             PageHeader(title: "Modelos", accent: "do seu jeito",
                        subtitle: "Rode tudo no seu Mac, de graça, ou use uma conta que você já tem.")
 
-            ModelCard(
-                title: "Transcrição",
-                subtitle: "Transforma sua voz em texto",
-                local: Binding(get: { model.transcriptionEngine == .local },
-                               set: { model.transcriptionEngine = $0 ? .local : .cloud }),
-                localDetail: "No seu Mac · privado e grátis",
-                cloudDetail: "OpenAI ou Groq"
-            ) {
-                if model.transcriptionEngine == .local {
-                    ForEach(ModelManager.catalog) { item in
-                        LocalModelRow(item: item, model: model, manager: manager,
-                                      divider: item.id != ModelManager.catalog.last?.id)
-                    }
-                    if let error = manager.lastError { ErrorRow(message: error) }
-                } else {
-                    ProviderRow(selection: $model.transcriptionProvider, providers: CloudTranscriber.providers)
-                    APIKeyRow(model: model, provider: model.transcriptionProvider)
-                    ControlRow(divider: false) {
-                        RowTitle(title: "Modelo")
-                    } control: {
-                        ModelMenu(selection: $model.transcriptionModel,
-                                  options: CloudTranscriber.models(for: model.transcriptionProvider))
-                    }
-                }
-            }
+            TranscriptionCard(model: model, manager: manager)
 
             AIModelCard(model: model, ollama: model.ollama)
         }
         .onAppear { manager.refresh() }
+    }
+}
+
+/// Where speech becomes text: a model on this Mac (pick one you have or download one) or an API key.
+/// Shared by Modelos and the first-launch setup, so both work the same way.
+struct TranscriptionCard: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var manager: ModelManager
+
+    var body: some View {
+        ModelCard(
+            title: "Transcrição",
+            subtitle: "Transforma sua voz em texto",
+            local: Binding(get: { model.transcriptionEngine == .local },
+                           set: { model.transcriptionEngine = $0 ? .local : .cloud }),
+            localDetail: "No seu Mac · privado e grátis",
+            cloudDetail: "OpenAI ou Groq"
+        ) {
+            if model.transcriptionEngine == .local {
+                ForEach(ModelManager.catalog) { item in
+                    LocalModelRow(item: item, model: model, manager: manager,
+                                  divider: item.id != ModelManager.catalog.last?.id)
+                }
+                if let error = manager.lastError { ErrorRow(message: error) }
+            } else {
+                ProviderRow(selection: $model.transcriptionProvider, providers: CloudTranscriber.providers)
+                APIKeyRow(model: model, provider: model.transcriptionProvider)
+                ControlRow(divider: false) {
+                    RowTitle(title: "Modelo")
+                } control: {
+                    ModelMenu(selection: $model.transcriptionModel,
+                              options: CloudTranscriber.models(for: model.transcriptionProvider))
+                }
+            }
+        }
     }
 }
 
@@ -431,8 +442,23 @@ private struct LocalModelRow: View {
                     .font(.system(size: 15))
                     .foregroundStyle(isSelected && isInstalled ? Theme.blue : Theme.secondary.opacity(0.5))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(item.name).foregroundStyle(Theme.text)
+                    HStack(spacing: 6) {
+                        Text(item.name).foregroundStyle(Theme.text)
+                        if item.id == ModelManager.recommended.id {
+                            Text("Recomendado")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Theme.blue)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Theme.blueTint))
+                        }
+                    }
                     Text("\(item.detail) · \(item.size)").font(.system(size: 12)).foregroundStyle(Theme.secondary)
+                    if item.engine == .whisper && !WhisperServer.isInstalled {
+                        Text("Avançado: precisa do whisper-cpp (brew install whisper-cpp)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.orange)
+                    }
                 }
                 Spacer()
                 ScoreBars(accuracy: item.accuracy, speed: item.speed)
@@ -534,7 +560,17 @@ private struct OllamaModelRow: View {
                     .font(.system(size: 15))
                     .foregroundStyle(selected && installed ? Theme.blue : Theme.secondary.opacity(0.5))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(item.name).foregroundStyle(Theme.text)
+                    HStack(spacing: 6) {
+                        Text(item.name).foregroundStyle(Theme.text)
+                        if item.id == ModelManager.recommended.id {
+                            Text("Recomendado")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Theme.blue)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Theme.blueTint))
+                        }
+                    }
                     Text("\(item.detail) · \(item.size)").font(.system(size: 12)).foregroundStyle(Theme.secondary)
                 }
                 Spacer()

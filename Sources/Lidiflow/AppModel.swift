@@ -324,6 +324,13 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Adds Lidiflow to the Accessibility list (macOS only lists apps that asked) and opens it there.
+    func requestAccessibility() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        guard !AXIsProcessTrustedWithOptions(options) else { return refreshPermissions() }
+        openAccessibilitySettings()
+    }
+
     func openAccessibilitySettings() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
     }

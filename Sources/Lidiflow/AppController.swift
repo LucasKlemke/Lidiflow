@@ -18,6 +18,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private let recorder = AudioRecorder()
     private let overlay = OverlayWindow()
     private lazy var mainWindow = MainWindowController(model: model)
+    private lazy var onboarding = OnboardingWindowController(model: model) { [weak self] in self?.mainWindow.show() }
     private let hotkey = HotkeyMonitor()
 
     private var statusItem: NSStatusItem!
@@ -34,7 +35,9 @@ final class AppController: NSObject, NSApplicationDelegate {
         statusItem.button?.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "Lidiflow")
         buildMenu()
         buildMainMenu()
-        mainWindow.show()
+        // First launch: the setup window asks for each permission in turn, instead of every prompt at once.
+        let onboarding = OnboardingWindowController.isNeeded
+        if onboarding { self.onboarding.show() } else { mainWindow.show() }
 
         recorder.onLevel = { [weak self] level in
             DispatchQueue.main.async { self?.overlay.state.levels.pushLevel(level) }
@@ -61,8 +64,8 @@ final class AppController: NSObject, NSApplicationDelegate {
             Task { @MainActor in await self?.prepareEngine() }
         }
 
-        model.requestMicrophone()
-        startHotkeyWhenTrusted()
+        if !onboarding { model.requestMicrophone() }
+        startHotkeyWhenTrusted(prompt: !onboarding)
         Task { @MainActor in await prepareEngine() }
     }
 
@@ -119,8 +122,8 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     // MARK: - Permissions
 
-    private func startHotkeyWhenTrusted() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+    private func startHotkeyWhenTrusted(prompt: Bool) {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: prompt] as CFDictionary
         if AXIsProcessTrustedWithOptions(options), hotkey.start() { return }
 
         permissionTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] timer in

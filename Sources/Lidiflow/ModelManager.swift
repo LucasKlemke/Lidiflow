@@ -45,6 +45,12 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
         LocalModel(id: "ggml-large-v3.bin", name: "Large v3", detail: "O mais preciso, o mais lento", size: "3,1 GB", speed: 23, accuracy: 89),
     ]
 
+    /// The one set up on first launch: Apple's when this Mac has it, otherwise Parakeet, which runs inside
+    /// the app (no whisper-cpp to install) and handles Portuguese, English and Spanish well.
+    static var recommended: LocalModel {
+        AppleSpeech.isSupported ? AppleSpeech.model : model(id: "parakeet-tdt-0.6b-v3-Q8_0.gguf")!
+    }
+
     static func model(id: String) -> LocalModel? {
         catalog.first { $0.id == id }
     }

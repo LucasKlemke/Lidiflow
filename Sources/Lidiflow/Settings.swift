@@ -59,6 +59,12 @@ enum Settings {
         set { defaults.set(newValue, forKey: "microphone") }
     }
 
+    /// Set once the first-launch setup is finished.
+    static var onboardingDone: Bool {
+        get { defaults.bool(forKey: "onboardingDone") }
+        set { defaults.set(newValue, forKey: "onboardingDone") }
+    }
+
     static var soundsEnabled: Bool {
         get { defaults.object(forKey: "soundsEnabled") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "soundsEnabled") }
