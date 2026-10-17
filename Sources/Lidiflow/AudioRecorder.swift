@@ -1,21 +1,31 @@
+import AudioToolbox
 import AVFoundation
 
-/// Captures the default microphone and resamples it to 16 kHz mono, which is what Whisper expects.
+/// Captures the chosen microphone (or the system default) and resamples it to 16 kHz mono, which is what Whisper expects.
 final class AudioRecorder {
     static let sampleRate: Double = 16_000
 
     var onLevel: (Float) -> Void = { _ in }
 
-    private let engine = AVAudioEngine()
+    private var engine = AVAudioEngine()
+    /// The input `engine` was set to, nil for the system default.
+    private var device: AudioDeviceID?
     private let targetFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false
     )!
     private var converter: AVAudioConverter?
     private var samples: [Float] = []
     private let lock = NSLock()
+    /// False for a recorder that only reports levels (the microphone test in Ajustes).
+    private let keepsSamples: Bool
+
+    init(keepsSamples: Bool = true) {
+        self.keepsSamples = keepsSamples
+    }
 
     func start() throws {
         lock.withLock { samples.removeAll(keepingCapacity: true) }
+        useDevice(Settings.microphone.flatMap(MicrophoneList.device(uid:)))
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         converter = AVAudioConverter(from: format, to: targetFormat)
@@ -23,7 +33,28 @@ final class AudioRecorder {
             self?.process(buffer)
         }
         engine.prepare()
-        try engine.start()
+        do {
+            try engine.start()
+        } catch {
+            input.removeTap(onBus: 0)
+            engine.stop()
+            throw error
+        }
+    }
+
+    /// Points the engine at `device`. A fresh engine for each change, since one that already ran keeps
+    /// the old input's format. A chosen microphone that's unplugged falls back to the system default.
+    private func useDevice(_ device: AudioDeviceID?) {
+        guard device != self.device else { return }
+        engine = AVAudioEngine()
+        self.device = device
+        guard var id = device, let unit = engine.inputNode.audioUnit else { return }
+        let status = AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
+                                          &id, UInt32(MemoryLayout<AudioDeviceID>.size))
+        if status != noErr {
+            engine = AVAudioEngine()
+            self.device = nil
+        }
     }
 
     /// The last `seconds` of the recording, without stopping. Copies only that tail, so the
@@ -60,10 +91,24 @@ final class AudioRecorder {
         guard error == nil, let channel = output.floatChannelData?[0] else { return }
 
         let chunk = Array(UnsafeBufferPointer(start: channel, count: Int(output.frameLength)))
-        lock.withLock { samples.append(contentsOf: chunk) }
+        if keepsSamples { lock.withLock { samples.append(contentsOf: chunk) } }
 
-        let power = chunk.reduce(0) { $0 + $1 * $1 } / Float(max(chunk.count, 1))
-        onLevel(sqrt(power))
+        // A level per ~40 ms rather than per buffer (often ~100 ms), so the waveform moves smoothly.
+        let step = Int(Self.sampleRate * 0.04)
+        for start in stride(from: 0, to: chunk.count, by: step) {
+            let part = chunk[start..<min(start + step, chunk.count)]
+            onLevel(sqrt(part.reduce(0) { $0 + $1 * $1 } / Float(part.count)))
+        }
+    }
+
+    /// Whether any 30 ms stretch is louder than room noise (about -42 dBFS). Speech peaks well above
+    /// that even on quiet microphones; a muted or wrong input stays below it.
+    static func hasVoice(_ samples: [Float]) -> Bool {
+        let frame = Int(sampleRate * 0.03)
+        return stride(from: 0, to: samples.count, by: frame).contains { start in
+            let chunk = samples[start..<min(start + frame, samples.count)]
+            return chunk.reduce(0) { $0 + $1 * $1 } / Float(chunk.count) > 0.008 * 0.008
+        }
     }
 
     /// Encodes samples as a 16-bit PCM mono WAV file.

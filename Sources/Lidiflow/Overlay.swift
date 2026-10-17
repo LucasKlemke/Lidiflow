@@ -9,7 +9,8 @@ final class OverlayState: ObservableObject {
     }
 
     @Published var phase: Phase = .hidden
-    @Published var level: Float = 0
+    /// Recent microphone levels for the waveform, oldest first.
+    @Published var levels = [Float](repeating: 0, count: 12)
     /// Live transcript while recording; the pill shows its end and never grows.
     @Published var live = ""
 }
@@ -36,6 +37,10 @@ final class OverlayWindow {
     }
 
     func show(_ phase: OverlayState.Phase) {
+        // Each recording starts flat instead of with the end of the last one.
+        if [.listening, .handsFree].contains(phase), ![.listening, .handsFree, .command].contains(state.phase) {
+            state.levels = state.levels.map { _ in 0 }
+        }
         state.phase = phase
         if phase == .hidden {
             panel.orderOut(nil)
@@ -82,15 +87,8 @@ private struct OverlayView: View {
     @ViewBuilder private var indicator: some View {
         switch state.phase {
         case .listening, .handsFree, .command:
-            HStack(spacing: 3) {
-                ForEach(0..<5, id: \.self) { i in
-                    Capsule()
-                        .fill(state.phase == .command ? Color.orange : Color(red: 0.3, green: 0.58, blue: 1))
-                        .frame(width: 3, height: barHeight(i))
-                }
-            }
-            .frame(height: 22)
-            .animation(.easeOut(duration: 0.08), value: state.level)
+            Waveform(levels: state.levels,
+                     color: state.phase == .command ? .orange : Color(red: 0.3, green: 0.58, blue: 1))
         case .error:
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
         default:
@@ -112,11 +110,5 @@ private struct OverlayView: View {
         case .error(let message): return message
         case .hidden: return ""
         }
-    }
-
-    private func barHeight(_ index: Int) -> CGFloat {
-        let weights: [CGFloat] = [0.5, 0.8, 1, 0.8, 0.5]
-        let level = min(CGFloat(state.level) * 12, 1)
-        return 4 + 18 * level * weights[index]
     }
 }

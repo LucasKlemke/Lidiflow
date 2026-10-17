@@ -37,6 +37,27 @@ enum TextProcessor {
         return words.isEmpty ? nil : words.joined(separator: ", ") + "."
     }
 
+    /// Drops the sentences Whisper-family models invent on silence or noise, learned from YouTube
+    /// subtitles ("Inscreva-se no canal…", "Legendas pela comunidade Amara.org", "Thanks for watching").
+    static func removeHallucinations(_ text: String) -> String {
+        var kept: [String] = []
+        text.enumerateSubstrings(in: text.startIndex..., options: .bySentences) { sentence, _, _, _ in
+            guard let sentence else { return }
+            let folded = sentence.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            if !hallucinations.contains(where: { folded.contains($0) }) { kept.append(sentence) }
+        }
+        return kept.joined().trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Folded (lowercase, no accents) fragments.
+    private static let hallucinations = [
+        "inscreva-se no canal", "inscrevam-se no canal", "ative o sininho", "ativem o sininho",
+        "deixe seu like", "deixem seu like", "obrigado por assistir", "obrigada por assistir",
+        "legendas pela comunidade amara", "legendado por", "amara.org",
+        "subscribe to my channel", "subscribe to the channel", "thanks for watching", "thank you for watching",
+        "subtitles by the amara", "suscribete al canal", "gracias por ver", "subtitulos realizados por",
+    ]
+
     private static func replaceWords(_ phrase: String, with replacement: String, in text: String) -> String {
         let pattern = "\\b" + NSRegularExpression.escapedPattern(for: phrase) + "\\b"
         return text.replacingOccurrences(

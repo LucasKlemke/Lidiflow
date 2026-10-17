@@ -37,7 +37,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         mainWindow.show()
 
         recorder.onLevel = { [weak self] level in
-            DispatchQueue.main.async { self?.overlay.state.level = level }
+            DispatchQueue.main.async { self?.overlay.state.levels.pushLevel(level) }
         }
         hotkey.onAction = { [weak self] action in self?.handle(action) }
         hotkey.isRecording = { [weak self] in self?.session != nil }
@@ -209,7 +209,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 guard let self, self.session != nil else { return }
                 // Only the tail is visible, so a short window is plenty and keeps each pass fast.
                 let samples = self.recorder.tail(seconds: 10)
-                if samples.count >= Int(AudioRecorder.sampleRate) / 2,
+                if samples.count >= Int(AudioRecorder.sampleRate) / 2, AudioRecorder.hasVoice(samples),
                    let text = try? await self.transcribe(samples, preview: true), !Task.isCancelled, !text.isEmpty {
                     self.overlay.state.live = text
                 }
@@ -280,7 +280,8 @@ final class AppController: NSObject, NSApplicationDelegate {
         let samples = recorder.stop()
         let duration = Date().timeIntervalSince(session.startedAt)
 
-        guard duration >= Self.minimumDuration, !samples.isEmpty else {
+        // Silence (a muted or wrong microphone) makes Whisper invent YouTube outros, so skip it.
+        guard duration >= Self.minimumDuration, AudioRecorder.hasVoice(samples) else {
             overlay.show(.hidden)
             return
         }
@@ -316,6 +317,10 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     /// The single path from samples to text. A `preview` pass is cancellable and skips the dictionary hints.
     private func transcribe(_ samples: [Float], preview: Bool = false) async throws -> String {
+        TextProcessor.removeHallucinations(try await rawTranscription(samples, preview: preview))
+    }
+
+    private func rawTranscription(_ samples: [Float], preview: Bool) async throws -> String {
         let language = Settings.language
         let prompt = preview ? nil : TextProcessor.whisperPrompt(for: model.dictionary)
         switch Settings.transcriptionEngine {

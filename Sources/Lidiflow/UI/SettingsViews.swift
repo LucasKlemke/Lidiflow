@@ -31,12 +31,35 @@ struct SettingsView: View {
                     .labelsHidden()
                     .frame(width: 220)
                 }
+                SettingRow(title: "Microfone", detail: "Fale algo: as barras mostram se ele está ouvindo") {
+                    MicrophoneTest(selection: model.microphone)
+                    MicrophonePicker(selection: $model.microphone, list: model.microphones)
+                }
                 SettingRow(title: "Sons ao iniciar e parar") {
                     Toggle("", isOn: $model.soundsEnabled).labelsHidden().toggleStyle(.switch)
                 }
                 SettingRow(title: "Ajustar texto com IA", detail: "Remove vícios de fala e corrige a pontuação", divider: false) {
                     Toggle("", isOn: $model.polishEnabled).labelsHidden().toggleStyle(.switch)
                 }
+            }
+
+            SectionCard(title: "Instruções para a IA",
+                        footer: "Vão junto em todo uso da IA: ajuste de texto, modo comando e transforms.") {
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: $model.aiInstructions)
+                        .font(.system(size: 14))
+                        .scrollContentBackground(.hidden)
+                    if model.aiInstructions.isEmpty {
+                        Text("Ex.: Escreva em português do Brasil. Use \u{201C}você\u{201D}, nunca \u{201C}tu\u{201D}. Prefira frases curtas.")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Theme.secondary.opacity(0.7))
+                            .padding(.leading, 5)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .frame(height: 110)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -67,6 +90,61 @@ struct SettingsView: View {
                 PermissionRow(title: "Microfone", detail: "Para ouvir o que você dita",
                               granted: model.microphoneGranted, divider: false, action: model.requestMicrophone)
             }
+        }
+    }
+}
+
+/// "Padrão do sistema" follows whatever macOS uses; a chosen microphone that's unplugged stays listed,
+/// marked as disconnected, and the recorder falls back to the default until it's back.
+private struct MicrophonePicker: View {
+    @Binding var selection: String?
+    @ObservedObject var list: MicrophoneList
+
+    var body: some View {
+        Picker("", selection: $selection) {
+            Text(list.systemDefault.map { "Padrão do sistema (\($0))" } ?? "Padrão do sistema").tag(String?.none)
+            Divider()
+            ForEach(list.all) { Text($0.name).tag(Optional($0.id)) }
+            if let selection, !list.all.contains(where: { $0.id == selection }) {
+                Text("Desconectado").tag(Optional(selection))
+            }
+        }
+        .labelsHidden()
+        .frame(width: 220)
+        .onAppear { list.refresh() }
+    }
+}
+
+/// Live waveform of the chosen microphone while this page is open.
+private struct MicrophoneTest: View {
+    let selection: String?
+    @StateObject private var monitor = MicrophoneMonitor()
+
+    var body: some View {
+        Group {
+            if monitor.failed {
+                Image(systemName: "mic.slash").foregroundStyle(Theme.secondary)
+                    .help("Não foi possível ouvir este microfone. Confira a permissão em Permissões.")
+            } else {
+                Waveform(levels: monitor.levels, color: Theme.blue, height: 18)
+            }
+        }
+        // Listens only while you're looking at it: this page open, the window visible and Lidiflow in front.
+        // (Closing the window keeps this view alive, so onDisappear alone would leave the mic on.)
+        .onAppear(perform: update)
+        .onDisappear { monitor.stop() }
+        .onChange(of: selection) { if monitor.isRunning { monitor.start() } }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)) { _ in update() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in update() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in update() }
+    }
+
+    private func update() {
+        let visible = NSApp.windows.contains { !($0 is NSPanel) && $0.occlusionState.contains(.visible) && $0.isVisible }
+        if visible && NSApp.isActive {
+            if !monitor.isRunning { monitor.start() }
+        } else {
+            monitor.stop()
         }
     }
 }

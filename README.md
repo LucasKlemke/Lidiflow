@@ -35,7 +35,9 @@ A diferença é que ele é **gratuito** e você escolhe onde a IA roda:
 - **Atalhos livres:** até 2 atalhos por ação. Pode ser uma tecla F, uma combinação, um modificador sozinho (⇧ direito, Fn) ou um botão extra do mouse.
 - **Dicionário e correções:** ensine nomes e siglas para o Lidiflow escrever do seu jeito.
 - **Snippets:** diga "meu email" e ele insere o texto completo.
-- **Ajuste com IA:** remove "é…", "tipo", repetições e corrige a pontuação.
+- **Ajuste com IA:** remove "é…", "tipo", repetições e corrige a pontuação, sem responder o que você perguntou.
+- **Instruções para a IA:** um texto seu que vai junto no ajuste, no modo comando e nos transforms.
+- **Microfone:** escolha qual usar, com uma onda ao vivo para ver se ele está te ouvindo.
 - **Histórico** de ditados, estatísticas, tema claro, escuro ou do sistema.
 
 ## Modelos

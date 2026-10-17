@@ -53,6 +53,12 @@ enum Settings {
         set { defaults.set(newValue.rawValue, forKey: "appearance") }
     }
 
+    /// Core Audio UID of the chosen microphone; nil uses the system default.
+    static var microphone: String? {
+        get { defaults.string(forKey: "microphone") }
+        set { defaults.set(newValue, forKey: "microphone") }
+    }
+
     static var soundsEnabled: Bool {
         get { defaults.object(forKey: "soundsEnabled") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "soundsEnabled") }
@@ -73,6 +79,12 @@ enum Settings {
     static var autoTransformID: UUID? {
         get { defaults.string(forKey: "autoTransformID").flatMap(UUID.init(uuidString:)) }
         set { defaults.set(newValue?.uuidString, forKey: "autoTransformID") }
+    }
+
+    /// The user's own instructions, added to every AI pass that writes text (polish, command mode, transforms).
+    static var aiInstructions: String {
+        get { defaults.string(forKey: "aiInstructions") ?? "" }
+        set { defaults.set(newValue, forKey: "aiInstructions") }
     }
 
     static var polishEnabled: Bool {

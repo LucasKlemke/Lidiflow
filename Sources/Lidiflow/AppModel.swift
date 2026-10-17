@@ -40,6 +40,12 @@ final class AppModel: ObservableObject {
             Self.apply(appearance)
         }
     }
+    @Published var aiInstructions = Settings.aiInstructions {
+        didSet { Settings.aiInstructions = aiInstructions }
+    }
+    @Published var microphone = Settings.microphone {
+        didSet { Settings.microphone = microphone }
+    }
     @Published var soundsEnabled = Settings.soundsEnabled {
         didSet { Settings.soundsEnabled = soundsEnabled }
     }
@@ -124,6 +130,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var savedKeys = Set(LLMProvider.allCases.filter { Keychain.key(for: $0) != nil })
 
     let models = ModelManager()
+    let microphones = MicrophoneList()
     let ollama = OllamaManager()
 
     var onShortcutsChange: ([ShortcutAction: [KeyCombo]]) -> Void = { _ in }
