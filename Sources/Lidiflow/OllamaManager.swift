@@ -23,8 +23,12 @@ final class OllamaManager: ObservableObject {
     @Published private(set) var installed: [String] = []
     @Published private(set) var progress: [String: Double] = [:]
     @Published private(set) var lastError: String?
+    /// 0–1 while the app downloads Ollama itself.
+    @Published private(set) var installProgress: Double?
 
     private var pulls: [String: Task<Void, Never>] = [:]
+    /// The `ollama serve` this app started, stopped when the app quits.
+    private var server: Process?
 
     private static var host: URL {
         // The settings store the OpenAI-compatible URL (…/v1); the native API lives at the root.
@@ -32,7 +36,14 @@ final class OllamaManager: ObservableObject {
         return URL(string: base) ?? URL(string: "http://localhost:11434")!
     }
 
-    private static let binaryPaths = ["/opt/homebrew/bin/ollama", "/usr/local/bin/ollama"]
+    /// Where the app puts the Ollama it downloads, so nobody needs Homebrew or the Terminal.
+    private static var bundledDirectory: URL { Settings.supportDirectory.appendingPathComponent("ollama", isDirectory: true) }
+
+    /// Homebrew's, the Ollama app's, then the one this app downloaded.
+    private static var binaryPaths: [String] {
+        ["/opt/homebrew/bin/ollama", "/usr/local/bin/ollama", "/Applications/Ollama.app/Contents/Resources/ollama",
+         bundledDirectory.appendingPathComponent("ollama").path]
+    }
 
     var isInstalledOnMac: Bool {
         Self.binaryPaths.contains(where: FileManager.default.isExecutableFile)
@@ -55,7 +66,7 @@ final class OllamaManager: ObservableObject {
     @MainActor
     func start() async {
         guard let binary = Self.binaryPaths.first(where: FileManager.default.isExecutableFile) else {
-            lastError = "Ollama não está instalado (brew install ollama)"
+            lastError = "Ollama não está instalado: clique em Instalar"
             return
         }
         let process = Process()
@@ -65,6 +76,7 @@ final class OllamaManager: ObservableObject {
         process.standardError = FileHandle.nullDevice
         do {
             try process.run()
+            server = process
         } catch {
             lastError = "Não foi possível iniciar o Ollama"
             return
@@ -74,6 +86,71 @@ final class OllamaManager: ObservableObject {
             await refresh()
             if isRunning { return }
         }
+    }
+
+    func stop() {
+        server?.terminate()
+        server = nil
+    }
+
+    /// Downloads the official Ollama for macOS (Intel and Apple Silicon, signed by Ollama) from its GitHub
+    /// releases into Application Support, then starts it.
+    @MainActor
+    func install() async {
+        guard installProgress == nil else { return }
+        lastError = nil
+        installProgress = 0
+        defer { installProgress = nil }
+        let source = URL(string: "https://github.com/ollama/ollama/releases/latest/download/ollama-darwin.tgz")!
+        do {
+            let archive = try await Self.download(source) { [weak self] value in
+                Task { @MainActor in if self?.installProgress != nil { self?.installProgress = value } }
+            }
+            defer { try? FileManager.default.removeItem(at: archive) }
+            let directory = Self.bundledDirectory
+            try? FileManager.default.removeItem(at: directory)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let tar = Process()
+            tar.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+            tar.arguments = ["-xzf", archive.path, "-C", directory.path]
+            try tar.run()
+            tar.waitUntilExit()
+            guard tar.terminationStatus == 0, isInstalledOnMac else {
+                lastError = "Não foi possível instalar o Ollama"
+                return
+            }
+        } catch {
+            lastError = "Download do Ollama interrompido: \(error.localizedDescription)"
+            return
+        }
+        await start()
+    }
+
+    /// A download to a temporary file, reporting 0–1 progress.
+    private static func download(_ url: URL, progress: @escaping (Double) -> Void) async throws -> URL {
+        let (temporary, response) = try await URLSession.shared.download(from: url, delegate: DownloadProgress(progress))
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        // The system deletes `temporary` once this returns, so keep it under a name of our own.
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("ollama-\(UUID().uuidString).tgz")
+        try FileManager.default.moveItem(at: temporary, to: file)
+        return file
+    }
+
+    private final class DownloadProgress: NSObject, URLSessionDownloadDelegate {
+        let report: (Double) -> Void
+
+        init(_ report: @escaping (Double) -> Void) {
+            self.report = report
+        }
+
+        func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
+                        totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+            guard totalBytesExpectedToWrite > 0 else { return }
+            report(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
+        }
+
+        // The async `download(from:)` delivers the file itself; this is only here to satisfy the protocol.
+        func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {}
     }
 
     @MainActor

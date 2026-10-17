@@ -51,6 +51,11 @@ final class TranscribeEngine {
         queue.async { self.freeModel() }
     }
 
+    /// Frees the model before returning. For quitting: ggml asserts if the process exits with it loaded.
+    func unloadNow() {
+        queue.sync { freeModel() }
+    }
+
     /// Transcribes 16 kHz mono samples with the model at `url`, loading it first if needed (so a failed
     /// earlier load is retried). `language` is a short code, or "auto" to let the model detect it.
     /// `vocabulary` (the user's dictionary) is passed to models that accept custom terms.

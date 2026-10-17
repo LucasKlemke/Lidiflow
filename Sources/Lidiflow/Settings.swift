@@ -105,9 +105,13 @@ enum Settings {
         set { defaults.set(newValue.rawValue, forKey: "transcriptionEngine") }
     }
 
-    /// File name of the whisper.cpp model in `modelsDirectory`.
+    /// Id of the local model: a file name in `modelsDirectory`, or Apple's. An old whisper.cpp
+    /// model reads as its GGUF build.
     static var localModel: String {
-        get { defaults.string(forKey: "localModel") ?? "ggml-large-v3-turbo-q5_0.bin" }
+        get {
+            let saved = defaults.string(forKey: "localModel") ?? ModelManager.recommended.id
+            return ModelManager.legacyWhisper[saved] ?? saved
+        }
         set { defaults.set(newValue, forKey: "localModel") }
     }
 

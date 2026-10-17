@@ -381,13 +381,30 @@ private struct AIModelCard: View {
     }
 
     @ViewBuilder private var ollamaRows: some View {
-        SettingRow(title: ollama.isRunning ? "Ollama rodando" : "Ollama parado",
-                   detail: ollama.isRunning ? "Baixe um modelo abaixo e clique em Usar" : "Inicie para baixar e usar modelos") {
-            if ollama.isRunning {
-                Circle().fill(Color.green).frame(width: 8, height: 8)
-            } else {
-                Button("Iniciar") { Task { await ollama.start() } }
-                    .buttonStyle(PrimaryButtonStyle())
+        if ollama.isRunning || ollama.isInstalledOnMac {
+            SettingRow(title: ollama.isRunning ? "Ollama rodando" : "Ollama parado",
+                       detail: ollama.isRunning ? "Baixe um modelo abaixo e clique em Usar" : "Inicie para baixar e usar modelos") {
+                if ollama.isRunning {
+                    Circle().fill(Color.green).frame(width: 8, height: 8)
+                } else {
+                    Button("Iniciar") { Task { await ollama.start() } }
+                        .buttonStyle(PrimaryButtonStyle())
+                }
+            }
+        } else {
+            // The models below run in Ollama, so it comes first; the app installs it, no Terminal needed.
+            SettingRow(title: "Instalar o Ollama",
+                       detail: "Roda os modelos de IA no seu Mac. O Lidiflow baixa a versão oficial (175 MB).") {
+                if let progress = ollama.installProgress {
+                    ProgressView(value: progress).frame(width: 110)
+                    Text(progress.formatted(.percent.precision(.fractionLength(0))))
+                        .font(.system(size: 12).monospacedDigit())
+                        .foregroundStyle(Theme.secondary)
+                        .frame(width: 36)
+                } else {
+                    Button { Task { await ollama.install() } } label: { Label("Instalar", systemImage: "arrow.down") }
+                        .buttonStyle(PrimaryButtonStyle())
+                }
             }
         }
         ForEach(OllamaManager.catalog) { item in
@@ -454,11 +471,6 @@ private struct LocalModelRow: View {
                         }
                     }
                     Text("\(item.detail) · \(item.size)").font(.system(size: 12)).foregroundStyle(Theme.secondary)
-                    if item.engine == .whisper && !WhisperServer.isInstalled {
-                        Text("Avançado: precisa do whisper-cpp (brew install whisper-cpp)")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.orange)
-                    }
                 }
                 Spacer()
                 ScoreBars(accuracy: item.accuracy, speed: item.speed)

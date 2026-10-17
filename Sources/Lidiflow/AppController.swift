@@ -13,7 +13,6 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     private let model = AppModel()
-    private let whisper = WhisperServer()
     private let transcribeEngine = TranscribeEngine()
     private let recorder = AudioRecorder()
     private let overlay = OverlayWindow()
@@ -75,7 +74,6 @@ final class AppController: NSObject, NSApplicationDelegate {
         model.isReady = false
         switch Settings.transcriptionEngine {
         case .cloud:
-            whisper.stop()
             transcribeEngine.unload()
             let provider = Settings.transcriptionProvider
             guard Keychain.key(for: provider) != nil else {
@@ -86,22 +84,16 @@ final class AppController: NSObject, NSApplicationDelegate {
             setStatus("Carregando modelo…")
             do {
                 switch ModelManager.selected?.engine {
-                case .transcribe:
-                    whisper.stop()
-                    try await transcribeEngine.load(Settings.modelPath)
                 case .apple:
-                    whisper.stop()
                     transcribeEngine.unload()
                     // Downloads the current language's files the first time, if macOS doesn't have them.
                     try await AppleSpeech.install(language: Settings.language)
                     model.models.refresh()
                 default:
-                    transcribeEngine.unload()
-                    try await whisper.restart()
+                    try await transcribeEngine.load(Settings.modelPath)
                 }
             } catch {
                 // Don't keep a model loaded that's no longer the selected, downloaded one.
-                whisper.stop()
                 transcribeEngine.unload()
                 setStatus(error.localizedDescription)
                 return
@@ -116,8 +108,8 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        whisper.stop()
-        transcribeEngine.unload()
+        transcribeEngine.unloadNow()
+        model.ollama.stop()
     }
 
     // MARK: - Permissions
@@ -201,11 +193,11 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     /// Re-transcribes the last seconds while recording so the pill can show the words as they come.
     /// Local engines only: with a cloud key every preview would be a billed request. Skipped for the
-    /// slowest Whisper models, whose server can't drop a pass already running when the key is released.
+    /// slowest models, whose passes would compete with the final transcription for the GPU.
     private func startPreview() {
         stopPreview()
         guard Settings.transcriptionEngine == .local, let local = ModelManager.selected,
-              local.engine != .whisper || local.speed >= 35 else { return }
+              local.speed >= 35 else { return }
         previewTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(800))
             while !Task.isCancelled {
@@ -330,13 +322,11 @@ final class AppController: NSObject, NSApplicationDelegate {
         case .local where ModelManager.selected?.engine == .apple:
             return try await AppleSpeech.transcribe(samples: samples, language: language,
                                                     vocabulary: preview ? [] : model.dictionary)
-        case .local where ModelManager.selected?.engine == .transcribe:
+        case .local:
             return preview
                 ? try await transcribeEngine.preview(samples: samples, language: language)
                 : try await transcribeEngine.transcribe(samples: samples, model: Settings.modelPath,
                                                         language: language, vocabulary: model.dictionary)
-        case .local:
-            return try await whisper.transcribe(wav: AudioRecorder.wavData(from: samples), language: language, prompt: prompt)
         case .cloud:
             return try await CloudTranscriber.transcribe(wav: AudioRecorder.wavData(from: samples), language: language, prompt: prompt)
         }
@@ -346,7 +336,6 @@ final class AppController: NSObject, NSApplicationDelegate {
         switch error {
         case let error as LLM.Failure: return error.localizedDescription
         case let error as CloudTranscriber.Failure: return error.localizedDescription
-        case let error as WhisperServer.Failure: return error.localizedDescription
         case let error as TranscribeEngine.Failure: return error.localizedDescription
         case let error as AppleSpeech.Failure: return error.localizedDescription
         default: return "Falha na transcrição"

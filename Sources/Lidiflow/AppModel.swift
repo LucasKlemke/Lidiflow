@@ -164,6 +164,12 @@ final class AppModel: ObservableObject {
             transforms = saved
         }
         refreshPermissions()
+        // A model that finishes downloading while selected (the first one, or an old Whisper being
+        // replaced) gets loaded right away.
+        models.onInstalled = { [weak self] id in
+            guard let self, id == self.localModel, self.transcriptionEngine == .local else { return }
+            self.onEngineChange()
+        }
     }
 
     /// Light, dark, or nil to follow the system. The window, overlay and menus all pick it up.
