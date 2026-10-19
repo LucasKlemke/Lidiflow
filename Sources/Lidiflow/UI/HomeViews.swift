@@ -268,6 +268,18 @@ struct DictationTimeline: View {
                 }
             }
         }
+        // Balloons are drawn here, above every card, so no card edge or neighbor row can cut them.
+        .overlayPreferenceValue(BalloonKey.self) { balloons in
+            GeometryReader { proxy in
+                ForEach(balloons, id: \.text) { balloon in
+                    let button = proxy[balloon.anchor]
+                    Balloon(text: balloon.text)
+                        .position(x: button.midX, y: button.minY - 6 - 29 / 2)
+                        .transition(.opacity)
+                }
+            }
+            .allowsHitTesting(false)
+        }
     }
 
     private static func title(for day: Date) -> String {
@@ -287,36 +299,120 @@ private struct DictationRow: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 16) {
-                Text(item.date, format: .dateTime.hour().minute())
-                    .font(.system(size: 12).monospacedDigit())
-                    .foregroundStyle(Theme.secondary)
-                    .frame(width: 48, alignment: .leading)
-                Text(item.text)
-                    .foregroundStyle(Theme.text)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                HStack(spacing: 10) {
-                    Button {
-                        copyToClipboard(item.text)
-                        copied = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
-                    } label: {
-                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    }
-                    .help("Copiar")
-                    Button(action: onDelete) { Image(systemName: "trash") }
-                        .help("Apagar")
+            HStack(alignment: .center, spacing: 16) {
+                HStack(alignment: .firstTextBaseline, spacing: 16) {
+                    Text(item.date, format: .dateTime.hour().minute())
+                        .font(.system(size: 12).monospacedDigit())
+                        .foregroundStyle(Theme.secondary)
+                        .frame(width: 48, alignment: .leading)
+                    Text(item.text)
+                        .foregroundStyle(Theme.text)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(copied ? Theme.blue : Theme.secondary)
+                HStack(spacing: 4) {
+                    RowAction(systemImage: copied ? "checkmark" : "doc.on.doc", help: copied ? "Copiado" : "Copiar",
+                              tint: copied ? Theme.blue : nil) {
+                        copyToClipboard(item.text)
+                        withAnimation(.easeOut(duration: 0.15)) { copied = true }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                            withAnimation(.easeOut(duration: 0.15)) { copied = false }
+                        }
+                    }
+                    RowAction(systemImage: "trash", help: "Apagar", destructive: true, action: onDelete)
+                }
                 .opacity(hovering || copied ? 1 : 0)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(hovering ? Theme.hover : .clear)
+            .background(Theme.hover.opacity(hovering ? 1 : 0))
+            // The row being pointed at gets a blue mark on its edge, like a selection.
+            .overlay(alignment: .leading) {
+                Rectangle().fill(Theme.blue).frame(width: 2).opacity(hovering ? 1 : 0)
+            }
             if divider { Divider().overlay(Theme.border).padding(.leading, 80) }
         }
+        .contentShape(Rectangle())
         .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+/// A row's icon button: a framed square that lights up under the pointer (red for destructive ones).
+private struct RowAction: View {
+    let systemImage: String
+    let help: String
+    var tint: Color? = nil
+    var destructive = false
+    let action: () -> Void
+    @State private var hovering = false
+    @State private var showsBalloon = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(tint ?? (hovering ? (destructive ? Color.red : Theme.text) : Theme.secondary))
+                .frame(width: 28, height: 28)
+                .background(RoundedRectangle(cornerRadius: 8)
+                    .fill(hovering ? (destructive ? Color.red.opacity(0.1) : Theme.hover) : Theme.card))
+                .overlay(RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(hovering && destructive ? Color.red.opacity(0.4) : Theme.border))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(help)
+        .anchorPreference(key: BalloonKey.self, value: .bounds) { showsBalloon ? [Balloon.Placed(text: help, anchor: $0)] : [] }
+        .onHover { inside in
+            hovering = inside
+            if !inside { return withAnimation(.easeOut(duration: 0.1)) { showsBalloon = false } }
+            // A short wait, so sweeping the pointer across the row does not flash balloons.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                if hovering { withAnimation(.easeOut(duration: 0.15)) { showsBalloon = true } }
+            }
+        }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+/// A small dark label above a button, pointing at it.
+private struct Balloon: View {
+    struct Placed {
+        let text: String
+        let anchor: Anchor<CGRect>
+    }
+
+    let text: String
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(text)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.white)
+                .fixedSize()
+                .padding(.horizontal, 8)
+                .frame(height: 24)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.black))
+            Triangle().fill(Color.black).frame(width: 10, height: 5)
+        }
+        .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
+        .allowsHitTesting(false)
+    }
+}
+
+/// The balloons shown in the timeline, with the button each one points at.
+private struct BalloonKey: PreferenceKey {
+    static let defaultValue: [Balloon.Placed] = []
+    static func reduce(value: inout [Balloon.Placed], nextValue: () -> [Balloon.Placed]) { value += nextValue() }
+}
+
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+            path.closeSubpath()
+        }
     }
 }

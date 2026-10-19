@@ -71,10 +71,26 @@ public partial class HomePage : UserControl
 
     private void Copy_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is Dictation dictation)
+        if ((sender as Button)?.DataContext is not Dictation dictation) return;
+        try { Clipboard.SetText(dictation.Text); } catch { return; }
+        // A check in accent for a moment, and the buttons stay up meanwhile.
+        var button = (Button)sender;
+        var actions = (FrameworkElement)button.Parent;
+        button.Content = "\uE73E";
+        button.SetResourceReference(ForegroundProperty, "AccentFillColorDefaultBrush");
+        var balloon = (ToolTip)button.ToolTip;
+        balloon.Content = "Copiado";
+        actions.Opacity = 1;
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1.2) };
+        timer.Tick += (_, _) =>
         {
-            try { Clipboard.SetText(dictation.Text); } catch { }
-        }
+            timer.Stop();
+            button.Content = "\uE8C8";
+            button.ClearValue(ForegroundProperty);
+            balloon.Content = "Copiar";
+            actions.ClearValue(OpacityProperty);
+        };
+        timer.Start();
     }
 
     private void Delete_Click(object sender, RoutedEventArgs e)
