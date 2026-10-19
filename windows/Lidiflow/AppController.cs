@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Media;
 using System.Threading;
 using System.Threading.Tasks;
@@ -43,6 +44,7 @@ public sealed class AppController
         tray = new TrayIcon(ShowMainWindow, CopyLast, () => Application.Current.Shutdown());
 
         recorder.LevelChanged += level => Application.Current.Dispatcher.InvokeAsync(() => overlay.Level = level);
+        SetUpDictationBar();
         hotkey.OnAction = Handle;
         hotkey.IsRecording = () => session != null;
         hotkey.IsHandsFree = () => session?.HandsFree == true;
@@ -61,6 +63,7 @@ public sealed class AppController
         model.ShortcutsChanged += () =>
         {
             hotkey.Shortcuts = model.Shortcuts;
+            overlay.DictateKeys = DictateKeys();
             if (model.IsReady) SetReady();
         };
         model.EngineChanged += () => _ = PrepareEngineAsync();
@@ -82,6 +85,29 @@ public sealed class AppController
         ShowMainWindow();
         _ = PrepareEngineAsync();
     }
+
+    /// The bar's buttons and menu, and the settings it follows.
+    private void SetUpDictationBar()
+    {
+        overlay.DictateKeys = DictateKeys();
+        overlay.OnDictate = ToggleHandsFree;
+        overlay.OnStop = () => { if (session != null) _ = FinishAsync(); };
+        overlay.OnCancel = Cancel;
+        overlay.OnPasteLast = () => { if (model.History.Count > 0) _ = PasteLastAsync(model.History[0].Text); };
+        overlay.OnOpenApp = ShowMainWindow;
+        overlay.CurrentMicrophone = () => model.Microphone;
+        overlay.OnSelectMicrophone = id => model.Microphone = id;
+        overlay.OnEdgeChanged = edge => model.DictationBarEdge = edge;
+        overlay.Edge = model.DictationBarEdge;
+        overlay.ShowsIdleBar = model.ShowsDictationBar;
+        model.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AppModel.ShowsDictationBar)) overlay.ShowsIdleBar = model.ShowsDictationBar;
+        };
+        overlay.Display(OverlayPhase.Hidden);
+    }
+
+    private List<string> DictateKeys() => model.CombosFor(ShortcutAction.Dictate).FirstOrDefault()?.Keys ?? new List<string>();
 
     public void Shutdown()
     {
@@ -323,8 +349,16 @@ public sealed class AppController
             }
 
             model.AddDictation(new Dictation { Date = DateTime.Now, Text = text, Duration = duration });
-            ShowOverlay(OverlayPhase.Hidden);
-            await TextInserter.InsertAsync(text);
+            // Paste only into a text box; otherwise keep it, without touching the clipboard, for the paste shortcut.
+            if (await TextInserter.FocusedTargetAsync() == TextInserter.Target.NotEditable)
+            {
+                ShowTip(PasteTip());
+            }
+            else
+            {
+                ShowOverlay(OverlayPhase.Hidden);
+                await TextInserter.InsertAsync(text);
+            }
         }
         catch (Exception e)
         {
@@ -363,6 +397,21 @@ public sealed class AppController
     {
         errorToken++;
         overlay.Display(phase, detail);
+    }
+
+    private string PasteTip()
+    {
+        var combo = model.CombosFor(ShortcutAction.PasteLast).FirstOrDefault();
+        return combo == null ? "Ditado guardado: clique num campo de texto e cole pelo menu da barra"
+                             : $"Clique num campo de texto e use {combo.Label} para colar";
+    }
+
+    private async void ShowTip(string message)
+    {
+        ShowOverlay(OverlayPhase.Tip, message);
+        int token = errorToken;
+        await Task.Delay(5000);
+        if (token == errorToken) ShowOverlay(OverlayPhase.Hidden);
     }
 
     private async void FlashError(string message)

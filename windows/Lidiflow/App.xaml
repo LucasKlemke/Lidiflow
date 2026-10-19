@@ -4,6 +4,10 @@
              ThemeMode="System"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
+        <FontFamily x:Key="BodyFont">Segoe UI Variable Text, Segoe UI</FontFamily>
+        <FontFamily x:Key="DisplayFont">Segoe UI Variable Display, Segoe UI</FontFamily>
+        <!-- Shortcut keys and timestamps. -->
+        <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas</FontFamily>
         <Style x:Key="PageTitle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="28" />
             <Setter Property="FontWeight" Value="SemiBold" />

@@ -9,30 +9,10 @@
         ShowInTaskbar="False"
         ShowActivated="False"
         ResizeMode="NoResize"
-        SizeToContent="WidthAndHeight"
-        Focusable="False"
-        IsHitTestVisible="False">
-    <Border Margin="12" Height="44" MinWidth="180" Padding="16,0" CornerRadius="22" Background="#D1141414">
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.35" />
-        </Border.Effect>
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-            <StackPanel x:Name="Bars" Orientation="Horizontal" Height="22" VerticalAlignment="Center">
-                <Rectangle x:Name="Bar0" Width="3" Height="4" RadiusX="1.5" RadiusY="1.5" Margin="0,0,3,0" VerticalAlignment="Center" />
-                <Rectangle x:Name="Bar1" Width="3" Height="4" RadiusX="1.5" RadiusY="1.5" Margin="0,0,3,0" VerticalAlignment="Center" />
-                <Rectangle x:Name="Bar2" Width="3" Height="4" RadiusX="1.5" RadiusY="1.5" Margin="0,0,3,0" VerticalAlignment="Center" />
-                <Rectangle x:Name="Bar3" Width="3" Height="4" RadiusX="1.5" RadiusY="1.5" Margin="0,0,3,0" VerticalAlignment="Center" />
-                <Rectangle x:Name="Bar4" Width="3" Height="4" RadiusX="1.5" RadiusY="1.5" VerticalAlignment="Center" />
-            </StackPanel>
-            <Path x:Name="Spinner" Width="16" Height="16" Stroke="White" StrokeThickness="2" Stretch="None"
-                  Data="M 8,1 A 7,7 0 1 1 1,8" RenderTransformOrigin="0.5,0.5" VerticalAlignment="Center">
-                <Path.RenderTransform>
-                    <RotateTransform x:Name="SpinnerRotation" />
-                </Path.RenderTransform>
-            </Path>
-            <TextBlock x:Name="WarningIcon" Text="⚠" Foreground="#FFD60A" FontSize="15" VerticalAlignment="Center" />
-            <TextBlock x:Name="Caption" Margin="10,0,0,0" Foreground="White" FontSize="13" FontWeight="Medium"
-                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="440" />
-        </StackPanel>
-    </Border>
+        Focusable="False">
+    <!-- The dictation bar. The content for each state is built in code (OverlayWindow.xaml.cs); the window is sized
+         and placed in physical pixels on the monitor under the mouse, and the border fills it. 10 pt corners, as on
+         the Mac. -->
+    <Border x:Name="Root" CornerRadius="10" BorderThickness="1" SnapsToDevicePixels="True"
+            TextElement.FontFamily="{StaticResource BodyFont}" TextElement.Foreground="White" />
 </Window>

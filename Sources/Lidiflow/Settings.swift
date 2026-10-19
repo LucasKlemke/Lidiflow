@@ -65,6 +65,18 @@ enum Settings {
         set { defaults.set(newValue, forKey: "onboardingDone") }
     }
 
+    /// The dictation bar at the bottom of the screen while idle; it always appears while dictating.
+    static var showsDictationBar: Bool {
+        get { defaults.object(forKey: "showsDictationBar") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "showsDictationBar") }
+    }
+
+    /// Where the dictation bar docks; changed by dragging it or from its menu.
+    static var dictationBarEdge: DockEdge {
+        get { DockEdge(rawValue: defaults.string(forKey: "dictationBarEdge") ?? "") ?? .bottom }
+        set { defaults.set(newValue.rawValue, forKey: "dictationBarEdge") }
+    }
+
     static var soundsEnabled: Bool {
         get { defaults.object(forKey: "soundsEnabled") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "soundsEnabled") }

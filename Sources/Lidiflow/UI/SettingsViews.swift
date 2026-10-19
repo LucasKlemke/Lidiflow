@@ -21,6 +21,9 @@ struct SettingsView: View {
             }
 
             SectionCard(title: "Ditado") {
+                SettingRow(title: "Barra de ditado", detail: "Fica no pé da tela; passe o mouse para ditar com um clique") {
+                    Toggle("", isOn: $model.showsDictationBar).labelsHidden().toggleStyle(.switch)
+                }
                 SettingRow(title: "Idioma") {
                     Picker("", selection: $model.language) {
                         Text("Português").tag("pt")

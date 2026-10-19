@@ -28,6 +28,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var permissionTimer: Timer?
     private let updateItem = NSMenuItem(title: "", action: #selector(installUpdate), keyEquivalent: "")
     private var updateWatch: AnyCancellable?
+    private var subscriptions: Set<AnyCancellable> = []
 
     private static let minimumDuration: TimeInterval = 0.35
 
@@ -60,8 +61,10 @@ final class AppController: NSObject, NSApplicationDelegate {
         hotkey.shortcuts = model.shortcuts
         model.onShortcutsChange = { [weak self] shortcuts in
             self?.hotkey.shortcuts = shortcuts
+            self?.overlay.state.dictateKeys = self?.model.keys(for: .dictate) ?? []
             if self?.model.isReady == true { self?.setReady() }
         }
+        setUpDictationBar()
         model.onEngineChange = { [weak self] in
             Task { @MainActor in await self?.prepareEngine() }
         }
@@ -234,6 +237,30 @@ final class AppController: NSObject, NSApplicationDelegate {
         session?.selection = Task { @MainActor in await TextInserter.selectedText() }
     }
 
+    /// The bar's buttons and menu, and the settings it follows.
+    private func setUpDictationBar() {
+        let bar = overlay.state
+        bar.dictateKeys = model.keys(for: .dictate)
+        bar.onDictate = { [weak self] in self?.toggleHandsFree() }
+        bar.onStop = { [weak self] in
+            if self?.session != nil { self?.finish() }
+        }
+        bar.onCancel = { [weak self] in self?.cancel() }
+        bar.onPasteLast = { [weak self] in
+            if let last = self?.model.history.first { TextInserter.insert(last.text) }
+        }
+        bar.onOpenApp = { [weak self] in self?.mainWindow.show() }
+        bar.microphones = model.microphones
+        bar.onSelectMicrophone = { [weak self] in self?.model.microphone = $0 }
+        model.$microphone.sink { [weak self] in self?.overlay.state.microphone = $0 }.store(in: &subscriptions)
+        model.$showsDictationBar.sink { [weak self] in self?.overlay.showsIdleBar = $0 }.store(in: &subscriptions)
+        // Follow the Dock, resolution and monitor changes.
+        NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+            .sink { [weak self] _ in self?.overlay.layout() }
+            .store(in: &subscriptions)
+        overlay.layout()
+    }
+
     private func cancel() {
         guard session != nil else { return }
         discardRecording()
@@ -304,8 +331,13 @@ final class AppController: NSObject, NSApplicationDelegate {
                 }
 
                 model.add(Dictation(date: Date(), text: text, duration: duration))
-                overlay.show(.hidden)
-                TextInserter.insert(text)
+                // Like a person would, paste only into a text box; otherwise keep it for the paste shortcut.
+                if TextInserter.focusedTarget() == .notEditable {
+                    showTip(pasteTip)
+                } else {
+                    overlay.show(.hidden)
+                    TextInserter.insert(text)
+                }
             } catch {
                 flashError(Self.message(for: error))
                 NSLog("Lidiflow: \(error.localizedDescription)")
@@ -357,6 +389,19 @@ final class AppController: NSObject, NSApplicationDelegate {
             text = (try? await LLM.transform(text, with: transform.prompt)) ?? text
         }
         return TextProcessor.apply(text, replacements: model.replacements, snippets: model.snippets)
+    }
+
+    private var pasteTip: String {
+        let keys = model.keys(for: .pasteLast)
+        return keys.isEmpty ? "Ditado guardado: clique num campo de texto e cole pelo menu da barra"
+                            : "Clique num campo de texto e use \(keys.joined(separator: " ")) para colar"
+    }
+
+    private func showTip(_ message: String) {
+        overlay.show(.tip(message))
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            if case .tip = self?.overlay.state.phase { self?.overlay.show(.hidden) }
+        }
     }
 
     private func flashError(_ message: String) {

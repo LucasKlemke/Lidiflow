@@ -22,6 +22,50 @@ enum TextInserter {
         }
     }
 
+    enum Target { case editable, notEditable, unknown }
+
+    /// Roles that take typed text.
+    private static let textRoles: Set<String> = ["AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"]
+    /// Roles that certainly do not: pasting there does nothing, or something unwanted (a Finder list renames or
+    /// duplicates files). Ambiguous containers such as AXGroup and AXWebArea are left out on purpose: Electron and
+    /// web apps often report those for a real text box.
+    private static let nonTextRoles: Set<String> = [
+        "AXList", "AXOutline", "AXTable", "AXBrowser", "AXButton", "AXImage", "AXStaticText", "AXLink",
+        "AXCheckBox", "AXRadioButton", "AXSlider", "AXMenu", "AXMenuBar", "AXMenuItem", "AXToolbar", "AXSplitter",
+        "AXScrollArea", "AXPopUpButton", "AXDisclosureTriangle",
+    ]
+
+    /// Whether the focused element takes text, so a dictation is pasted only where it lands somewhere.
+    /// When it cannot tell, it says so, and the caller pastes as before rather than lose a dictation.
+    static func focusedTarget() -> Target {
+        let app = NSWorkspace.shared.frontmostApplication
+        if let app {
+            // Electron apps (Slack, Notion, VS Code) build their accessibility tree only when asked.
+            AXUIElementSetAttributeValue(AXUIElementCreateApplication(app.processIdentifier),
+                                         "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        }
+        // The Finder only takes text in real fields (rename, search); anywhere else a paste copies files.
+        let isFinder = app?.bundleIdentifier == "com.apple.finder"
+        let system = AXUIElementCreateSystemWide()
+        var focused: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused)
+        // "Nothing focused" is also what Chrome reports for a focused text box while its accessibility is off.
+        guard status == .success, let focused, CFGetTypeID(focused) == AXUIElementGetTypeID()
+        else { return isFinder ? .notEditable : .unknown }
+        let element = focused as! AXUIElement
+
+        var roleValue: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
+        let role = roleValue as? String ?? ""
+        if textRoles.contains(role) { return .editable }
+        var settable = DarwinBoolean(false)
+        if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success, settable.boolValue,
+           !nonTextRoles.contains(role) {
+            return .editable
+        }
+        return nonTextRoles.contains(role) || isFinder ? .notEditable : .unknown
+    }
+
     /// The focused app's selected text, via Accessibility or, failing that, a Cmd+C round trip.
     @MainActor
     static func selectedText() async -> String? {

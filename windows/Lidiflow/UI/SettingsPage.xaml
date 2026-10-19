@@ -27,6 +27,13 @@
                     </StackPanel>
                 </DockPanel>
                 <DockPanel Margin="0,0,0,12">
+                    <CheckBox x:Name="DictationBarBox" DockPanel.Dock="Right" Click="DictationBar_Click" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Barra de ditado" />
+                        <TextBlock Text="Fica no pé da tela; passe o mouse para ditar com um clique" Style="{StaticResource Subtle}" FontSize="12" />
+                    </StackPanel>
+                </DockPanel>
+                <DockPanel Margin="0,0,0,12">
                     <ComboBox x:Name="LanguageBox" DockPanel.Dock="Right" Width="220" SelectionChanged="Language_Changed">
                         <ComboBoxItem Content="Português" Tag="pt" />
                         <ComboBoxItem Content="English" Tag="en" />

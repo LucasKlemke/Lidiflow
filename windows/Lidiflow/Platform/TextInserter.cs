@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Automation;
 using Lidiflow.Core;
 
 namespace Lidiflow.Platform;
@@ -14,6 +15,64 @@ namespace Lidiflow.Platform;
 /// Text the app puts on the clipboard is kept out of Windows' clipboard history (Win+V) and cloud sync.
 public static class TextInserter
 {
+    public enum Target { Editable, NotEditable, Unknown }
+
+    /// Control types that certainly take no typed text: pasting there does nothing, or something unwanted
+    /// (in Explorer, Ctrl+V copies files). Panes, groups and documents of web/Electron apps are left out on purpose.
+    private static readonly HashSet<ControlType> NonTextTypes = new()
+    {
+        ControlType.Button, ControlType.List, ControlType.ListItem, ControlType.Tree, ControlType.TreeItem,
+        ControlType.Image, ControlType.Text, ControlType.Hyperlink, ControlType.CheckBox, ControlType.RadioButton,
+        ControlType.Slider, ControlType.Menu, ControlType.MenuItem, ControlType.MenuBar, ControlType.ToolBar,
+        ControlType.Tab, ControlType.TabItem, ControlType.Table, ControlType.DataGrid,
+    };
+
+    /// Whether the focused element takes text, so a dictation is pasted only where it lands somewhere. Asks UI
+    /// Automation off the UI thread with a short timeout; when it cannot tell, says so, and the caller pastes as before
+    /// rather than lose a dictation (browsers and Electron apps often don't answer).
+    public static async Task<Target> FocusedTargetAsync()
+    {
+        var query = Task.Run(() =>
+        {
+            bool explorer = ForegroundProcessName() == "explorer";
+            var focused = AutomationElement.FocusedElement;
+            if (focused == null) return explorer ? Target.NotEditable : Target.Unknown;
+            var type = focused.Current.ControlType;
+            if (type == ControlType.Edit || type == ControlType.Document) return Target.Editable;
+            if (focused.TryGetCurrentPattern(ValuePattern.Pattern, out var pattern) &&
+                pattern is ValuePattern value && !value.Current.IsReadOnly && !NonTextTypes.Contains(type))
+            {
+                return Target.Editable;
+            }
+            // Explorer only takes text in real fields (rename, address, search); anywhere else Ctrl+V copies files.
+            return NonTextTypes.Contains(type) || explorer ? Target.NotEditable : Target.Unknown;
+        });
+        try
+        {
+            var finished = await Task.WhenAny(query, Task.Delay(300));
+            return finished == query ? await query : Target.Unknown;
+        }
+        catch (Exception e)
+        {
+            Log.Write("Focused element: " + e.Message);
+            return Target.Unknown;
+        }
+    }
+
+    private static string? ForegroundProcessName()
+    {
+        try
+        {
+            Native.GetWindowThreadProcessId(Native.GetForegroundWindow(), out var pid);
+            using var process = System.Diagnostics.Process.GetProcessById((int)pid);
+            return process.ProcessName.ToLowerInvariant();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private const int VK_V = 0x56;
     private const int VK_INSERT = 0x2D;
 

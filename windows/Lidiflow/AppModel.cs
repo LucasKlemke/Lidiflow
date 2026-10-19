@@ -91,6 +91,18 @@ public sealed class AppModel : ObservableObject
         set { settings.Microphone = value; Save(); }
     }
 
+    public bool ShowsDictationBar
+    {
+        get => settings.ShowsDictationBar;
+        set { settings.ShowsDictationBar = value; Save(); OnPropertyChanged(); }
+    }
+
+    public string DictationBarEdge
+    {
+        get => settings.DictationBarEdge;
+        set { settings.DictationBarEdge = value; Save(); }
+    }
+
     public bool SoundsEnabled
     {
         get => settings.SoundsEnabled;

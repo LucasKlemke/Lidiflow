@@ -33,6 +33,7 @@ public partial class SettingsPage : UserControl
         LoadMicrophones();
         Select(LanguageBox, model.Language);
         SoundsBox.IsChecked = model.SoundsEnabled;
+        DictationBarBox.IsChecked = model.ShowsDictationBar;
         PolishBox.IsChecked = model.PolishEnabled;
         StartupBox.IsChecked = model.LaunchAtStartup;
         loading = false;
@@ -70,6 +71,8 @@ public partial class SettingsPage : UserControl
     {
         if (!loading && TagOf(MicrophoneBox) is string microphone) model.Microphone = microphone;
     }
+
+    private void DictationBar_Click(object sender, RoutedEventArgs e) => model.ShowsDictationBar = DictationBarBox.IsChecked == true;
 
     private void Sounds_Click(object sender, RoutedEventArgs e) => model.SoundsEnabled = SoundsBox.IsChecked == true;
 

@@ -36,6 +36,12 @@ public sealed class AppSettings
     /// The microphone's MMDevice id, or Microphones.Automatic.
     public string Microphone { get; set; } = Platform.Microphones.Automatic;
 
+    /// The dictation bar while idle; it always appears while dictating.
+    public bool ShowsDictationBar { get; set; } = true;
+
+    /// Where the dictation bar docks: "bottom", "left" or "right" (see OverlayWindow.Edges).
+    public string DictationBarEdge { get; set; } = "bottom";
+
     /// Master switch for transform shortcuts.
     public bool TransformsEnabled { get; set; } = true;
 
