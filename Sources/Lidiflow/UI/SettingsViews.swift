@@ -1,3 +1,4 @@
+import ServiceManagement
 import SwiftUI
 
 // MARK: - Settings
@@ -49,8 +50,13 @@ struct SettingsView: View {
                 SettingRow(title: "Sons ao iniciar e parar") {
                     Toggle("", isOn: $model.soundsEnabled).labelsHidden().toggleStyle(.switch)
                 }
-                SettingRow(title: "Ajustar texto com IA", detail: "Remove vícios de fala e corrige a pontuação", divider: false) {
+                SettingRow(title: "Ajustar texto com IA", detail: "Remove vícios de fala e corrige a pontuação") {
                     Toggle("", isOn: $model.polishEnabled).labelsHidden().toggleStyle(.switch)
+                }
+                SettingRow(title: "Abrir o Lidiflow ao entrar no Mac", divider: false) {
+                    Toggle("", isOn: $model.launchAtLogin).labelsHidden().toggleStyle(.switch)
+                        // It can also be turned off in System Settings, so read it again here.
+                        .onAppear { model.launchAtLogin = SMAppService.mainApp.status == .enabled }
                 }
             }
 
