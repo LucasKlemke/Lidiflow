@@ -58,9 +58,22 @@ enum LLM {
         let cleaned = try await complete(system: polishInstructions, user: "<transcricao>\(text)</transcricao>")
             .replacingOccurrences(of: #"</?transcricao>"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        // Cleaning only removes words. A reply much longer than what was said means the model answered
-        // instead of cleaning, so the dictation is kept as spoken.
-        return cleaned.count > text.count * 3 / 2 + 20 ? text : cleaned
+        return isCleanup(cleaned, of: text) ? cleaned : text
+    }
+
+    /// Cleaning only removes words. A reply much longer than the dictation, or made mostly of words that were
+    /// not said, is the model answering instead of cleaning, so the dictation is kept as spoken.
+    static func isCleanup(_ output: String, of input: String) -> Bool {
+        func words(_ text: String) -> [String] {
+            text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { !$0.isEmpty }
+        }
+        let said = words(input), got = words(output)
+        guard !got.isEmpty else { return false }
+        if got.count > said.count + max(3, said.count / 5) { return false }
+        let known = Set(said)
+        return Double(got.filter(known.contains).count) / Double(got.count) >= 0.7
     }
 
     /// Applies a spoken instruction to the selected text, or writes new text when nothing is selected.
