@@ -45,7 +45,7 @@ O Windows não enxerga a tecla `Fn` (quem cuida dela é o próprio teclado), ent
 | Ação | Padrão |
 |---|---|
 | Ditar (segurar) | `Ctrl + Win` |
-| Mãos livres | `Ctrl + Win + Espaço` |
+| Mãos livres | Dois toques em `Ctrl + Win`, ou `Ctrl + Win + Espaço` (um toque para parar) |
 | Modo comando (segurar) | `Ctrl + Win + Alt` |
 | Transform 1…9 | `Ctrl + Win + 1…9` |
 | Colar / copiar a última transcrição | `Win + Alt + V` / `Win + Alt + C` |

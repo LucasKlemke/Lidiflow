@@ -39,7 +39,7 @@ A diferença é que ele é **gratuito** e você escolhe onde a IA roda:
 ## Recursos
 
 - **Segure e fale:** segure `Fn` (ou o atalho que você quiser), fale e solte. O texto é colado no app em foco, e o seu clipboard é preservado.
-- **Mãos livres:** `Fn + Espaço` começa a gravar sem precisar segurar; aperte de novo para parar.
+- **Mãos livres:** dois toques no `Fn` (ou `Fn + Espaço`) começam a gravar sem precisar segurar; um toque no `Fn` para e cola.
 - **Modo comando:** selecione um texto, segure `Fn + ⌃` e diga o que mudar ("traduz pra inglês", "deixa mais formal").
 - **Transforms:** reescritas com um atalho (mais formal, resumir, tópicos, email…). Crie os seus, com sugestões geradas pela IA, ou aplique um transform automaticamente em tudo o que você dita.
 - **Atalhos livres:** até 2 atalhos por ação. Pode ser uma tecla F, uma combinação, um modificador sozinho (⇧ direito, Fn) ou um botão extra do mouse.
@@ -74,7 +74,7 @@ As chaves de API ficam guardadas no **Keychain do macOS**, nunca em arquivos.
 | Ação | Padrão |
 |---|---|
 | Ditar (segurar) | `Fn` |
-| Mãos livres | `Fn + Espaço` |
+| Mãos livres | Dois toques no `Fn`, ou `Fn + Espaço` (um toque no `Fn` para) |
 | Modo comando (segurar) | `Fn + ⌃` |
 | Transform 1…9 | `Fn + 1…9` (ou o atalho de cada transform) |
 | Colar / copiar a última transcrição | `⌃⌘V` / `⌃⌘C` |
