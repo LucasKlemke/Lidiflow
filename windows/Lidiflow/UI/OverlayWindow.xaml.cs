@@ -48,7 +48,7 @@ public partial class OverlayWindow : Window
 
     // Sizes in DIPs, as on the Mac.
     private static readonly Size Idle = new(44, 8), IdleSide = new(8, 44);
-    private static readonly Size Hovered = new(204, 36), HoveredSide = new(52, 148);
+    private static readonly Size Hovered = new(204, 36), HoveredSide = new(40, 70);
     private static readonly Size Recording = new(300, 40), RecordingSide = new(40, 104);
     private static readonly Size Busy = new(260, 40), BusySide = new(40, 40);
     // A dictation with nowhere to paste: lying against a side edge too, like the cards below.
@@ -81,6 +81,16 @@ public partial class OverlayWindow : Window
     private readonly DispatcherTimer expandTimer = new() { Interval = TimeSpan.FromSeconds(0.8) };
     private DispatcherTimer? resizeTimer;
     private readonly LivePanelWindow livePanel = new();
+    private readonly HintWindow hint = new();
+    /// The side bar's button under the pointer, named in the hint beside it.
+    private SideHint? sideHint;
+    /// Where Place last put the bar, in physical pixels, for the hint.
+    private Rect placedRect;
+    private double placedScale = 1;
+    /// Set while the bar fades out on its way to hidden; a new state cancels it.
+    private bool fadingOut;
+
+    private enum SideHint { Dictate, Meeting }
     private bool liveOpen;
     private IReadOnlyList<string> pasteKeys = Array.Empty<string>();
     private bool copied;
@@ -141,10 +151,10 @@ public partial class OverlayWindow : Window
         Root.ContextMenuOpening += (_, _) => Root.ContextMenu = BuildMenu();
         Root.ContextMenu = BuildMenu();
         DpiChanged += (_, _) => Place();
-        // With several monitors the bar sits on the one with the mouse, and moves when the mouse does.
+        // With several monitors the bar sits on the one with the mouse, and moves when the mouse does, recording or not.
         screenTimer.Tick += (_, _) =>
         {
-            if (phase == OverlayPhase.Hidden && !dragging && MouseMonitor().Monitor != currentMonitor) Place();
+            if (!dragging && MouseMonitor().Monitor != currentMonitor) Place();
         };
         screenTimer.Start();
         offerTimer.Tick += (_, _) =>
@@ -335,16 +345,26 @@ public partial class OverlayWindow : Window
 
     public void Display(OverlayPhase newPhase, string? newDetail = null)
     {
+        bool changed = newPhase != phase;
         phase = newPhase;
         detail = newDetail;
         copied = false;
-        if (phase != OverlayPhase.Hidden) hovering = false;
+        if (phase != OverlayPhase.Hidden)
+        {
+            hovering = false;
+            sideHint = null;
+        }
         Render();
-        Place();
+        Place(animated: changed);
     }
 
     private void SetHovering(bool value)
     {
+        if (!value && sideHint != null)
+        {
+            sideHint = null;
+            UpdateHint();
+        }
         if (phase != OverlayPhase.Hidden || dragging || offer != null || hovering == value) return;
         hovering = value;
         Render();
@@ -630,20 +650,31 @@ public partial class OverlayWindow : Window
         return row;
     }
 
+    /// On a side, just the two buttons; the one under the pointer is named in the hint beside the bar (HintWindow).
     private UIElement IdleSideContent()
     {
         var column = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        var label = Text("Ditar", 11);
-        label.HorizontalAlignment = HorizontalAlignment.Center;
-        column.Children.Add(label);
-        if (dictateKeys.Count > 0) column.Children.Add(KeyCaps(dictateKeys, new Thickness(0, 6, 0, 0)));
-        var mic = ActionButton("", Accent, "Ditar sem segurar a tecla", () => OnDictate());
-        mic.Margin = new Thickness(0, 6, 0, 0);
-        column.Children.Add(mic);
-        var record = RecordMeetingButton();
-        record.Margin = new Thickness(0, 4, 0, 0);
+        column.Children.Add(Hinted(ActionButton("", Accent, "Ditar sem segurar a tecla", () => OnDictate()), SideHint.Dictate));
+        var record = Hinted(RecordMeetingButton(), SideHint.Meeting);
+        record.Margin = new Thickness(0, 6, 0, 0);
         column.Children.Add(record);
         return column;
+    }
+
+    /// The hint names the button in place of its system tooltip, while the pointer is on it.
+    private Border Hinted(Border button, SideHint which)
+    {
+        button.ToolTip = null;
+        button.MouseEnter += (_, _) => SetSideHint(which);
+        button.MouseLeave += (_, _) => { if (sideHint == which) SetSideHint(null); };
+        return button;
+    }
+
+    private void SetSideHint(SideHint? value)
+    {
+        if (sideHint == value) return;
+        sideHint = value;
+        UpdateHint();
     }
 
     /// ◎: starts recording a meeting from the open bar.
@@ -782,7 +813,7 @@ public partial class OverlayWindow : Window
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
     };
 
-    private static UIElement KeyCaps(IReadOnlyList<string> keys, Thickness margin)
+    internal static UIElement KeyCaps(IReadOnlyList<string> keys, Thickness margin)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = margin, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         foreach (var key in keys)
@@ -966,25 +997,142 @@ public partial class OverlayWindow : Window
         };
     }
 
-    /// Re-anchors the bar on the monitor under the mouse.
-    public void Place()
+    /// Re-anchors the bar on the monitor under the mouse. `animated` (a new phase) grows or shrinks it to its new size.
+    public void Place(bool animated = false)
     {
         if (dragging) return;
+        animated &= Animates;
         if (CurrentSize() is not { } size)
         {
-            Hide();
             livePanel.Hide();
+            hint.Hide();
+            if (!animated || !IsVisible || fadingOut)
+            {
+                if (!fadingOut) Hide();
+                return;
+            }
+            resizeTimer?.Stop();
+            fadingOut = true;
+            var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(150));
+            fade.Completed += (_, _) =>
+            {
+                if (!fadingOut) return;
+                fadingOut = false;
+                if (CurrentSize() == null) Hide();
+                Root.BeginAnimation(OpacityProperty, null);
+                Root.Opacity = 1;
+            };
+            Root.BeginAnimation(OpacityProperty, fade);
             return;
+        }
+        if (fadingOut)
+        {
+            fadingOut = false;
+            Root.BeginAnimation(OpacityProperty, null);
+            Root.Opacity = 1;
         }
         var area = MouseMonitor();
         currentMonitor = area.Monitor;
         var rect = Slot(edge, size, area);
-        if (!IsVisible) Show();
+        if (!animated)
+        {
+            // A grow still running would pull the bar back to its old target.
+            resizeTimer?.Stop();
+            if (!IsVisible) Show();
+            SetBounds(rect, Native.SWP_SHOWWINDOW);
+            FollowBar(rect, area);
+            return;
+        }
+        GrowTo(rect, area);
+    }
+
+    private void SetBounds(Rect rect, uint extraFlags = 0) =>
         Native.SetWindowPos(handle, Native.HWND_TOPMOST, (int)rect.X, (int)rect.Y, (int)rect.Width, (int)rect.Height,
-            Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+            Native.SWP_NOACTIVATE | extraFlags);
+
+    /// The live transcript and the hint follow the bar.
+    private void FollowBar(Rect rect, MonitorArea area)
+    {
+        placedRect = rect;
+        placedScale = area.Scale;
         if (liveOpen && meetingElapsed != null) livePanel.PlaceBeside(rect, edge, area.Scale);
         else livePanel.Hide();
+        UpdateHint();
     }
+
+    /// The bar grows out of its handle (or out of nothing, when the idle bar is off) like a spring settling, its new content
+    /// fading in.
+    private void GrowTo(Rect target, MonitorArea area)
+    {
+        Rect start;
+        if (IsVisible)
+        {
+            Native.GetWindowRect(handle, out var window);
+            start = new Rect(window.left, window.top, window.right - window.left, window.bottom - window.top);
+        }
+        else
+        {
+            start = Slot(edge, Side ? IdleSide : Idle, area);
+            Root.Opacity = 1;
+            Root.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(280)));
+            Show();
+            SetBounds(start, Native.SWP_SHOWWINDOW);
+        }
+        livePanel.Hide();
+        hint.Hide();
+        if (Root.Child is FrameworkElement content)
+            content.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+        var started = DateTime.Now;
+        var duration = TimeSpan.FromMilliseconds(280);
+        resizeTimer?.Stop();
+        var timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(15) };
+        resizeTimer = timer;
+        timer.Tick += (_, _) =>
+        {
+            double t = Math.Min(1, (DateTime.Now - started).TotalMilliseconds / duration.TotalMilliseconds);
+            double k = t >= 1 ? 1 : Springy(t);
+            SetBounds(new Rect(start.X + (target.X - start.X) * k, start.Y + (target.Y - start.Y) * k,
+                               Math.Max(1, start.Width + (target.Width - start.Width) * k),
+                               Math.Max(1, start.Height + (target.Height - start.Height) * k)));
+            if (t < 1) return;
+            timer.Stop();
+            SetBounds(target);
+            FollowBar(target, area);
+        };
+        timer.Start();
+    }
+
+    /// cubic-bezier(0.2, 1.1, 0.3, 1): an ease-out with a slight overshoot, like the Mac's.
+    private static double Springy(double t)
+    {
+        double lo = 0, hi = 1, s = t;
+        for (int i = 0; i < 24; i++)
+        {
+            s = (lo + hi) / 2;
+            if (Bezier(s, 0.2, 0.3) < t) lo = s; else hi = s;
+        }
+        return Bezier(s, 1.1, 1);
+
+        static double Bezier(double s, double p1, double p2) =>
+            3 * (1 - s) * (1 - s) * s * p1 + 3 * (1 - s) * s * s * p2 + s * s * s;
+    }
+
+    /// On a side, the hovered button is named beside the bar: the microphone with its keys, or the meeting button.
+    private void UpdateHint()
+    {
+        if (!ShowsHint || sideHint is not { } which)
+        {
+            hint.Hide();
+            return;
+        }
+        // Centers of the two buttons: 6 px padding + half of 26, then 6 px spacing + another 26.
+        if (which == SideHint.Dictate) hint.ShowBeside(placedRect, edge, placedScale, 19, "Ditar", dictateKeys);
+        else hint.ShowBeside(placedRect, edge, placedScale, 51, "Gravar reunião", Array.Empty<string>());
+    }
+
+    /// The hovered idle bar on a side names its hovered button beside it.
+    private bool ShowsHint => phase == OverlayPhase.Hidden && hovering && Side && !ShowsMeetingPill && !ShowsOffer && !dragging
+                              && IsVisible && !fadingOut;
 
     private void HideFor(TimeSpan duration)
     {
@@ -1027,7 +1175,9 @@ public partial class OverlayWindow : Window
             Native.GetWindowRect(handle, out var window);
             dragOffset = new Native.POINT { x = start.x - window.left, y = start.y - window.top };
             dragging = true;
+            sideHint = null;
             livePanel.Hide();
+            hint.Hide();
             Root.CaptureMouse();
         }
         Native.GetWindowRect(handle, out var current);

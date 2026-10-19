@@ -278,7 +278,7 @@ final class AppModel: ObservableObject {
             if combo.isModifierOnly { return "Transforms precisam de uma tecla ou botão do mouse" }
         }
         if !combo.isUsable(allowPlainKeys: editedAction == .cancel) {
-            return "Use um modificador (⌘ ⌃ ⌥ ⇧ Fn), uma tecla F ou um botão do mouse"
+            return "Use um modificador (⌘ ⌃ ⌥ Shift Fn), uma tecla F ou um botão do mouse"
         }
         for (action, combos) in shortcuts where combos.contains(combo) {
             return action == editedAction ? "Esse atalho já está nesta ação" : "Já usado para \(action.title.lowercased())"

@@ -169,7 +169,7 @@ struct MicrophoneTest: View {
 
 private extension SettingsView {
     var shortcutsFooter: String {
-        var text = "Até 2 atalhos por ação: uma tecla F, uma combinação (⌃⌥D), um modificador sozinho (⇧ direito, Fn) ou um botão extra do mouse (meio ou laterais). Transforms têm atalhos próprios na aba Transforms."
+        var text = "Até 2 atalhos por ação: uma tecla F, uma combinação (⌃⌥D), um modificador sozinho (Shift direito, Fn) ou um botão extra do mouse (meio ou laterais). Transforms têm atalhos próprios na aba Transforms."
         let usesFn = model.shortcuts.values.joined().contains { $0.flags.contains(.maskSecondaryFn) }
         if usesFn {
             text += " Com Fn, deixe \u{201C}Ao pressionar 🌐\u{201D} como \u{201C}Não fazer nada\u{201D} em Ajustes do Sistema → Teclado."

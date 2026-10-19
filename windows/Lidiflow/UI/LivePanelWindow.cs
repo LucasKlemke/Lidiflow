@@ -19,7 +19,7 @@ internal sealed class LivePanelWindow : Window
 {
     private const double PanelWidth = 340, MaxPanelHeight = 260, Gap = 8;
     private static readonly Color White = Color.FromRgb(0xFF, 0xFF, 0xFF);
-    private static readonly Color Tinta = Color.FromRgb(0x14, 0x14, 0x14);
+    private static readonly Color Dark = Color.FromRgb(0x14, 0x14, 0x14);
     private static readonly Color Accent = Color.FromRgb(0x1F, 0x6B, 0xFF);
 
     private readonly IntPtr handle;
@@ -74,7 +74,7 @@ internal sealed class LivePanelWindow : Window
         root = new Border
         {
             Width = PanelWidth, MaxHeight = MaxPanelHeight, CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1),
-            Background = Brush(Tinta, 0.94), BorderBrush = Brush(White, 0.14), Padding = new Thickness(14, 10, 10, 12),
+            Background = Brush(Dark, 0.94), BorderBrush = Brush(White, 0.14), Padding = new Thickness(14, 10, 10, 12),
             SnapsToDevicePixels = true, Child = layout,
         };
         root.SetResourceReference(TextElement.FontFamilyProperty, "BodyFont");
