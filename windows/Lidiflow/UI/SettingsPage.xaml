@@ -20,6 +20,13 @@
                     </StackPanel>
                 </DockPanel>
                 <DockPanel Margin="0,0,0,12">
+                    <ComboBox x:Name="MicrophoneBox" DockPanel.Dock="Right" Width="220" SelectionChanged="Microphone_Changed" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Microfone" />
+                        <TextBlock Text="No automático, com fone Bluetooth o Lidiflow usa outro microfone, e a música não pausa" Style="{StaticResource Subtle}" FontSize="12" TextWrapping="Wrap" Margin="0,0,12,0" />
+                    </StackPanel>
+                </DockPanel>
+                <DockPanel Margin="0,0,0,12">
                     <ComboBox x:Name="LanguageBox" DockPanel.Dock="Right" Width="220" SelectionChanged="Language_Changed">
                         <ComboBoxItem Content="Português" Tag="pt" />
                         <ComboBoxItem Content="English" Tag="en" />

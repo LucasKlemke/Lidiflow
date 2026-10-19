@@ -18,6 +18,8 @@
 
   <ItemGroup>
     <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
+    <!-- MMDevice API: lists microphones and tells Bluetooth ones apart (Platform/Microphones.cs). -->
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
   </ItemGroup>
 
   <ItemGroup>

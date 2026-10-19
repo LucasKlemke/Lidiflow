@@ -33,6 +33,9 @@ public sealed class AppSettings
     public Appearance Theme { get; set; } = Appearance.System;
     public bool SoundsEnabled { get; set; } = true;
 
+    /// The microphone's MMDevice id, or Microphones.Automatic.
+    public string Microphone { get; set; } = Platform.Microphones.Automatic;
+
     /// Master switch for transform shortcuts.
     public bool TransformsEnabled { get; set; } = true;
 

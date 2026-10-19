@@ -30,6 +30,7 @@ public partial class SettingsPage : UserControl
     {
         loading = true;
         Select(ThemeBox, model.Theme.ToString());
+        LoadMicrophones();
         Select(LanguageBox, model.Language);
         SoundsBox.IsChecked = model.SoundsEnabled;
         PolishBox.IsChecked = model.PolishEnabled;
@@ -51,6 +52,23 @@ public partial class SettingsPage : UserControl
     private void Language_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (!loading && TagOf(LanguageBox) is string language) model.Language = language;
+    }
+
+    private void LoadMicrophones()
+    {
+        MicrophoneBox.Items.Clear();
+        MicrophoneBox.Items.Add(new ComboBoxItem { Content = "Automático", Tag = Microphones.Automatic });
+        var devices = Microphones.Inputs();
+        foreach (var device in devices) MicrophoneBox.Items.Add(new ComboBoxItem { Content = device.Name, Tag = device.Id });
+        // A chosen microphone that is disconnected stays selectable, so the setting is not lost.
+        if (model.Microphone != Microphones.Automatic && devices.All(d => d.Id != model.Microphone))
+            MicrophoneBox.Items.Add(new ComboBoxItem { Content = "Microfone desconectado", Tag = model.Microphone });
+        Select(MicrophoneBox, model.Microphone);
+    }
+
+    private void Microphone_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!loading && TagOf(MicrophoneBox) is string microphone) model.Microphone = microphone;
     }
 
     private void Sounds_Click(object sender, RoutedEventArgs e) => model.SoundsEnabled = SoundsBox.IsChecked == true;

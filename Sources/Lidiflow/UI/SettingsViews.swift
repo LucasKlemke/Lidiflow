@@ -31,7 +31,7 @@ struct SettingsView: View {
                     .labelsHidden()
                     .frame(width: 220)
                 }
-                SettingRow(title: "Microfone", detail: "Fale algo: as barras mostram se ele está ouvindo") {
+                SettingRow(title: "Microfone", detail: "Fale algo: as barras mostram se ele está ouvindo. No padrão, com fone Bluetooth o Lidiflow usa o microfone do Mac, e a música não pausa") {
                     MicrophoneTest(selection: model.microphone)
                     MicrophonePicker(selection: $model.microphone, list: model.microphones)
                 }
@@ -94,7 +94,7 @@ struct SettingsView: View {
     }
 }
 
-/// "Padrão do sistema" follows whatever macOS uses; a chosen microphone that's unplugged stays listed,
+/// "Padrão do sistema" follows whatever macOS uses, except a Bluetooth headset (see `MicrophoneList.recordingDevice`); a chosen microphone that's unplugged stays listed,
 /// marked as disconnected, and the recorder falls back to the default until it's back.
 struct MicrophonePicker: View {
     @Binding var selection: String?

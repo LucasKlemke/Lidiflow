@@ -85,6 +85,12 @@ public sealed class AppModel : ObservableObject
         set { settings.Theme = value; Save(); ApplyTheme(value); }
     }
 
+    public string Microphone
+    {
+        get => settings.Microphone;
+        set { settings.Microphone = value; Save(); }
+    }
+
     public bool SoundsEnabled
     {
         get => settings.SoundsEnabled;
