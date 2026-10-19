@@ -6,6 +6,7 @@ using System.Media;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using Lidiflow.Core;
 using Lidiflow.Platform;
 using Lidiflow.UI;
@@ -38,6 +39,18 @@ public sealed class AppController
     private Session? session;
     private int errorToken;
 
+    // Meetings (docs/reunioes.md).
+    private MeetingProcessor? processor;
+    private MeetingRecorder? meetingRecorder;
+    private DateTime meetingStartedAt;
+    private readonly DispatcherTimer meetingTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private LiveTranscriber? live;
+    private readonly DispatcherTimer liveTimer = new() { Interval = TimeSpan.FromSeconds(8) };
+    private readonly MeetingDetector detector = new();
+    private static readonly System.Windows.Media.Color ReadyColor = System.Windows.Media.Color.FromRgb(0x7F, 0xA8, 0x8A);
+    /// The call whose start offer was used or dismissed; a new call offers again.
+    private string? offeredCall;
+
     public void Start()
     {
         AppModel.ApplyTheme(model.Theme);
@@ -45,6 +58,8 @@ public sealed class AppController
 
         recorder.LevelChanged += level => Application.Current.Dispatcher.InvokeAsync(() => overlay.Level = level);
         SetUpDictationBar();
+        SetUpMeetings();
+        SetUpMeetingDetection();
         hotkey.OnAction = Handle;
         hotkey.IsRecording = () => session != null;
         hotkey.IsHandsFree = () => session?.HandsFree == true;
@@ -83,7 +98,174 @@ public sealed class AppController
 
         if (!hotkey.Start()) SetStatus("Não foi possível ativar os atalhos globais");
         ShowMainWindow();
-        _ = PrepareEngineAsync();
+        _ = StartEnginesAsync();
+    }
+
+    /// Meetings left half-processed by the last run continue once the transcription engine is up.
+    private async Task StartEnginesAsync()
+    {
+        await PrepareEngineAsync();
+        ResumeMeetings();
+    }
+
+    // MARK: - Meetings
+
+    private void SetUpMeetings()
+    {
+        processor = new MeetingProcessor(TranscribeAsync,
+            text => TextProcessor.Apply(text, model.Replacements, Array.Empty<Snippet>()));
+        model.ToggleMeeting = ToggleMeeting;
+        model.ResummarizeMeeting = meeting => _ = processor.ResummarizeAsync(meeting);
+        tray?.SetMeetingAction(ToggleMeeting);
+        overlay.OnToggleMeeting = ToggleMeeting;
+        overlay.IsMeetingRecording = () => model.IsMeetingRecording;
+        meetingTimer.Tick += (_, _) =>
+        {
+            var elapsed = DateTime.Now - meetingStartedAt;
+            model.MeetingElapsed = elapsed;
+            overlay.MeetingElapsed = elapsed;
+        };
+        liveTimer.Tick += (_, _) => { if (live is { } current) _ = current.TickAsync(); };
+    }
+
+    /// Meetings left unfinished by a quit (or a crash) are processed again, one at a time.
+    private void ResumeMeetings()
+    {
+        if (processor == null) return;
+        foreach (var meeting in model.Meetings.Where(m => m != model.RecordingMeeting
+                     && m.Status is Meeting.Recording or Meeting.Transcribing or Meeting.Separating or Meeting.Summarizing).ToList())
+        {
+            _ = processor.ProcessAsync(meeting);
+        }
+    }
+
+    private async void ToggleMeeting()
+    {
+        if (model.RecordingMeeting is { } meeting) await StopMeetingAsync(meeting);
+        else StartMeeting();
+    }
+
+    /// Offers to record when a call starts, and to stop when it ends (docs/reunioes.md, "Fase 2").
+    private void SetUpMeetingDetection()
+    {
+        detector.Enabled = () => model.DetectMeetings;
+        detector.CallStarted += app =>
+        {
+            // "Gravar sozinho": record right away, no offer.
+            if (model.AutoRecordMeetings)
+            {
+                if (model.RecordingMeeting == null) StartMeeting(app);
+                return;
+            }
+            if (model.RecordingMeeting != null || offeredCall == app) return;
+            offeredCall = app;
+            overlay.ShowCard(new OverlayWindow.Card("\uE714", "Reunião detectada", $"{app} · agora", "Gravar",
+                Run: () => { if (model.RecordingMeeting == null) StartMeeting(app); },
+                Dismissed: () => { })
+            {
+                Dot = ReadyColor, CompactSubtitle = "agora", ActionShowsSymbol = true,
+            }, TimeSpan.FromSeconds(20));
+        };
+        detector.CallEnded += async app =>
+        {
+            offeredCall = null;
+            overlay.ClearOffer();
+            if (model.RecordingMeeting is not { } recording) return;
+            if (model.AutoRecordMeetings)
+            {
+                await StopMeetingAsync(recording);
+                return;
+            }
+            var recorded = Meeting.Clock((DateTime.Now - meetingStartedAt).TotalSeconds);
+            overlay.ShowCard(new OverlayWindow.Card("\uE71A", "A chamada acabou", $"{app} · {recorded} gravados", "Parar e resumir",
+                Run: async () => { if (model.RecordingMeeting == recording) await StopMeetingAsync(recording); },
+                Dismissed: () => { })
+            {
+                Dot = System.Windows.Media.Color.FromRgb(0x1F, 0x6B, 0xFF),
+            }, TimeSpan.FromSeconds(30));
+        };
+        detector.Start();
+    }
+
+    private void StartMeeting(string? app = null)
+    {
+        var now = DateTimeOffset.Now;
+        var meeting = Meeting.New(now, app);
+        var recording = new MeetingRecorder(meeting.MicPath, meeting.SystemPath);
+        try
+        {
+            System.IO.Directory.CreateDirectory(meeting.Folder);
+            recording.Start();
+        }
+        catch (Exception e)
+        {
+            Log.Write("Meeting start: " + e);
+            MeetingStore.Delete(meeting);
+            FlashError("Não foi possível gravar a reunião");
+            return;
+        }
+        meeting.SystemAudio = recording.SystemAudio;
+        overlay.ClearOffer();
+        MeetingStore.Save(meeting);
+        meetingRecorder = recording;
+        meetingStartedAt = DateTime.Now;
+        // The live transcript, from the same audio as the files (docs/reunioes.md, "Transcrição ao vivo").
+        var transcriber = new LiveTranscriber(TranscribeAsync);
+        transcriber.Changed += utterances => overlay.LiveUtterances = utterances;
+        recording.Captured = transcriber.Append;
+        live = transcriber;
+        liveTimer.Start();
+        model.Meetings.Insert(0, meeting);
+        model.RecordingMeeting = meeting;
+        model.MeetingElapsed = TimeSpan.Zero;
+        overlay.MeetingElapsed = TimeSpan.Zero;
+        tray?.SetMeetingRecording(true);
+        meetingTimer.Start();
+        Play(Sound.Lock);
+    }
+
+    private async Task StopMeetingAsync(Meeting meeting)
+    {
+        var recording = meetingRecorder;
+        meetingRecorder = null;
+        meetingTimer.Stop();
+        liveTimer.Stop();
+        int words = live?.WordCount ?? 0;
+        live?.Stop();
+        live = null;
+        if (recording != null) recording.Captured = null;
+        overlay.ClearOffer();
+        model.RecordingMeeting = null;
+        overlay.MeetingElapsed = null;
+        tray?.SetMeetingRecording(false);
+        meeting.Duration = (DateTime.Now - meetingStartedAt).TotalSeconds;
+        Play(Sound.Stop);
+        if (words < 15 && meeting.Duration < 120) AskIfAccidental(meeting);
+        if (recording != null) await recording.StopAsync();
+        if (meeting.Discarded)
+        {
+            // Discarded while the files were still open: the folder could not go then.
+            MeetingStore.Delete(meeting);
+            return;
+        }
+        meeting.Status = Meeting.Transcribing;
+        MeetingStore.Save(meeting);
+        if (processor != null) await processor.ProcessAsync(meeting);
+    }
+
+    /// "Começou sem querer?": almost nothing was heard. Descartar deletes the meeting, even while it is processed;
+    /// Manter or the 15 s running out leave it.
+    private void AskIfAccidental(Meeting meeting)
+    {
+        overlay.ShowCard(new OverlayWindow.Card("\uE7BA", "Começou sem querer?",
+            "Só algumas palavras foram captadas. Manter ou descartar a reunião?", "Manter",
+            Run: () => { },
+            Dismissed: () => { })
+        {
+            SecondaryLabel = "Descartar",
+            Secondary = () => model.DeleteMeeting(meeting),
+            Dismissable = false,
+        }, TimeSpan.FromSeconds(15));
     }
 
     /// The bar's buttons and menu, and the settings it follows.
@@ -111,6 +293,16 @@ public sealed class AppController
 
     public void Shutdown()
     {
+        detector.Stop();
+        live?.Stop();
+        // Quitting mid-meeting closes the files; the transcription runs on the next launch.
+        if (meetingRecorder is { } recording && model.RecordingMeeting is { } meeting)
+        {
+            meeting.Duration = (DateTime.Now - meetingStartedAt).TotalSeconds;
+            Task.Run(recording.StopAsync).Wait(3000);
+            meeting.Status = Meeting.Transcribing;
+            MeetingStore.Save(meeting);
+        }
         hotkey.Dispose();
         whisper.Stop();
         tray?.Dispose();

@@ -46,6 +46,15 @@ final class AppModel: ObservableObject {
     @Published var microphone = Settings.microphone {
         didSet { Settings.microphone = microphone }
     }
+    @Published var autoRecordMeetings = Settings.autoRecordMeetings {
+        didSet { Settings.autoRecordMeetings = autoRecordMeetings }
+    }
+    @Published var autoRecordAsked = Settings.autoRecordAsked {
+        didSet { Settings.autoRecordAsked = autoRecordAsked }
+    }
+    @Published var detectMeetings = Settings.detectMeetings {
+        didSet { Settings.detectMeetings = detectMeetings }
+    }
     @Published var showsDictationBar = Settings.showsDictationBar {
         didSet { Settings.showsDictationBar = showsDictationBar }
     }

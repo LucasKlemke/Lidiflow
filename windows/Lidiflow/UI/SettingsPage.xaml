@@ -34,6 +34,20 @@
                     </StackPanel>
                 </DockPanel>
                 <DockPanel Margin="0,0,0,12">
+                    <CheckBox x:Name="DetectMeetingsBox" DockPanel.Dock="Right" Click="DetectMeetings_Click" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Detectar reuniões" />
+                        <TextBlock Text="Oferece gravar quando uma chamada começa no Zoom, Teams, Meet e outros" Style="{StaticResource Subtle}" FontSize="12" TextWrapping="Wrap" Margin="0,0,12,0" />
+                    </StackPanel>
+                </DockPanel>
+                <DockPanel Margin="0,0,0,12">
+                    <CheckBox x:Name="AutoRecordBox" DockPanel.Dock="Right" Click="AutoRecord_Click" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Gravar reuniões sozinho" />
+                        <TextBlock Text="Começa a gravar quando a chamada começa e para quando ela acaba" Style="{StaticResource Subtle}" FontSize="12" TextWrapping="Wrap" Margin="0,0,12,0" />
+                    </StackPanel>
+                </DockPanel>
+                <DockPanel Margin="0,0,0,12">
                     <ComboBox x:Name="LanguageBox" DockPanel.Dock="Right" Width="220" SelectionChanged="Language_Changed">
                         <ComboBoxItem Content="Português" Tag="pt" />
                         <ComboBoxItem Content="English" Tag="en" />

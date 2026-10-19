@@ -38,6 +38,21 @@ campo (botão, lista, área de trabalho ou pasta do Explorer) não cola nem mexe
 no histórico e a barra mostra "Clique num campo de texto e use {atalho} para colar". Quando não dá para saber (alguns
 navegadores e apps Electron), cola como antes. A área de transferência anterior é restaurada depois de cada colagem.
 
+## Reuniões
+
+Na tela **Reuniões** (ou pelo menu da bandeja, ou pelo clique direito na barra), **Gravar reunião** grava duas trilhas
+em `%LOCALAPPDATA%\Lidiflow\meetings\<data-hora>\`: o microfone (**Você**) e o áudio do PC por WASAPI loopback
+(**Eles**), em 16 kHz mono. Durante a gravação a barra mostra `● tempo ■`, e ditar continua funcionando. Ao parar, o
+Lidiflow acha os trechos com fala, transcreve cada um com o motor do ditado, tira o eco de quem está sem fone e gera o
+resumo (decisões, tarefas, pontos em aberto) com a IA de Modelos. Fechar o app no meio salva o que foi gravado e o
+processamento continua na próxima vez. Detalhes em [`docs/reunioes.md`](../docs/reunioes.md).
+
+Com **Detectar reuniões** ligado (Ajustes), quando Zoom, Teams, Webex, Slack, Discord ou um navegador com Meet/Teams/Zoom aberto passa a usar o microfone, a barra oferece **Gravar**; quando a chamada acaba, oferece **Parar e resumir**.
+
+Os outros participantes são separados por voz (`Pessoa 1`, `Pessoa 2`…) pelo [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), baixado na primeira reunião para `%LOCALAPPDATA%\Lidiflow\diarization`; no painel **Vozes** da transcrição dá para ouvir cada voz, dar nome e juntar duas que são a mesma pessoa.
+
+Na tela Reuniões, e em cada reunião, dá para **perguntar** sobre o que foi dito (a resposta cita `[título · mm:ss]` e abre a transcrição). As tarefas do resumo podem ser marcadas como feitas, copiadas como lista ou enviadas por e-mail.
+
 ## Atalhos padrão
 
 O Windows não enxerga a tecla `Fn` (quem cuida dela é o próprio teclado), então `Ctrl + Win` faz o papel dela:

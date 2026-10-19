@@ -39,6 +39,16 @@ public sealed class AppSettings
     /// The dictation bar while idle; it always appears while dictating.
     public bool ShowsDictationBar { get; set; } = true;
 
+    /// Offers to record when a call starts in Zoom, Teams, Meet and others (docs/reunioes.md, "Fase 2").
+    public bool DetectMeetings { get; set; } = true;
+
+    /// Records a detected call by itself, and stops when it ends, instead of offering (docs/reunioes.md, "Gravar sozinho").
+    public bool AutoRecordMeetings { get; set; }
+
+    /// The "Gravar sozinho?" banner was answered (either way) and stays hidden.
+    public bool AutoRecordAsked { get; set; }
+
+
     /// Where the dictation bar docks: "bottom", "left" or "right" (see OverlayWindow.Edges).
     public string DictationBarEdge { get; set; } = "bottom";
 

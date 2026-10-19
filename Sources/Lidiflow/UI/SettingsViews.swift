@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    let meetings: MeetingCenter
 
     var body: some View {
         Page {
@@ -21,6 +22,13 @@ struct SettingsView: View {
             }
 
             SectionCard(title: "Ditado") {
+                SettingRow(title: "Detectar reuniões", detail: "Oferece gravar quando uma chamada começa no Zoom, Teams, Meet e outros") {
+                    Toggle("", isOn: $model.detectMeetings).labelsHidden().toggleStyle(.switch)
+                }
+                SettingRow(title: "Gravar reuniões sozinho", detail: "Começa a gravar quando a chamada começa e para quando ela acaba") {
+                    Toggle("", isOn: $model.autoRecordMeetings).labelsHidden().toggleStyle(.switch)
+                        .disabled(!model.detectMeetings)
+                }
                 SettingRow(title: "Barra de ditado", detail: "Fica no pé da tela; passe o mouse para ditar com um clique") {
                     Toggle("", isOn: $model.showsDictationBar).labelsHidden().toggleStyle(.switch)
                 }

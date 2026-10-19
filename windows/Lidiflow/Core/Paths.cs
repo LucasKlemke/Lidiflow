@@ -16,6 +16,13 @@ public static class Paths
     /// whisper.cpp binaries downloaded by the app.
     public static string WhisperBinaries => Ensure(Path.Combine(Support, "whisper"));
 
+    /// Machine-local data that must not roam with the profile: %LOCALAPPDATA%\Lidiflow.
+    public static string LocalSupport => Ensure(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lidiflow"));
+
+    /// Recorded meetings (audio is large and machine-local): one folder per meeting.
+    public static string Meetings => Ensure(Path.Combine(LocalSupport, "meetings"));
+
     private static string Ensure(string path)
     {
         Directory.CreateDirectory(path);

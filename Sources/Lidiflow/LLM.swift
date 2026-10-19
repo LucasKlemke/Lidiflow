@@ -76,6 +76,88 @@ enum LLM {
         return Double(got.filter(known.contains).count) / Double(got.count) >= 0.7
     }
 
+    /// Tested with the Qwen 2.5 3B: a template to fill, and the rule that "Eles" lines belong to the others, keep
+    /// small models from skipping sections or giving the others' tasks to "você".
+    private static let meetingInstructions = """
+    Você resume reuniões para a pessoa que gravou. A transcrição vem com uma fala por linha: \
+    "[mm:ss] Você: …" é a própria pessoa; as outras falas vêm com o nome da pessoa ou "Pessoa N" \
+    ("Eles" quando não foi possível separar as vozes). Quem diz "eu faço" numa fala de outra pessoa é \
+    essa pessoa, não você.
+
+    Escreva em segunda pessoa: "você" para quem gravou e os nomes (ou "os participantes") para os outros. \
+    Nas Tarefas, comece cada linha com o dono: "Você:", o nome da pessoa, ou "Participantes:" quando não \
+    der para saber.
+
+    Responda preenchendo exatamente o modelo que vem depois da transcrição: as quatro seções, nessa ordem, \
+    sem nada antes ou depois. Use só o que foi dito; não invente nomes, datas, números nem decisões. Seção \
+    sem conteúdo leva "- Nenhuma.".
+    """
+
+    private static let meetingTemplate = """
+    Modelo a preencher:
+    ## Resumo
+    (3 a 6 frases sobre o que foi tratado)
+
+    ## Decisões
+    - (cada decisão tomada, uma por linha)
+
+    ## Tarefas
+    - (Você:, o nome da pessoa ou Participantes:, o quê, e o prazo se foi dito)
+
+    ## Pontos em aberto
+    - (o que ficou sem resposta ou sem decisão)
+    """
+
+    private static let meetingNotesInstructions = """
+    Você recebe um trecho da transcrição de uma reunião, uma fala por linha no formato \
+    [mm:ss] Nome: texto ("Você" é quem gravou; os outros vêm com o nome, "Pessoa N" ou "Eles"). Anote, no \
+    idioma da reunião e só com o que foi dito, os assuntos, as decisões, as tarefas (dono, o quê, prazo) e \
+    os pontos em aberto deste trecho, em tópicos curtos.
+    """
+
+    /// The meeting summary in Markdown. A long transcript is noted in parts first: small local models have a
+    /// short context window and would otherwise read only its beginning. The user's instructions stay out, since
+    /// they could change the sections the app reads back (tasks, decisions).
+    static func summarizeMeeting(_ transcript: String) async throws -> String {
+        let limit = 8_000
+        guard transcript.count > limit else {
+            return try await complete(system: meetingInstructions, user: "Transcrição:\n\(transcript)\n\n\(meetingTemplate)",
+                                      withUserInstructions: false)
+        }
+        var parts: [String] = [], current = ""
+        for line in transcript.split(separator: "\n", omittingEmptySubsequences: false) {
+            if current.count + line.count + 1 > limit, !current.isEmpty {
+                parts.append(current)
+                current = ""
+            }
+            current += line + "\n"
+        }
+        if !current.isEmpty { parts.append(current) }
+        var notes: [String] = []
+        for (index, part) in parts.enumerated() {
+            let note = try await complete(system: meetingNotesInstructions, user: part, withUserInstructions: false)
+            notes.append("Parte \(index + 1) de \(parts.count):\n\(note)")
+        }
+        return try await complete(
+            system: meetingInstructions,
+            user: "Em vez da transcrição completa, estas são as anotações de cada parte da reunião, em ordem:\n\n"
+                + notes.joined(separator: "\n\n") + "\n\n\(meetingTemplate)",
+            withUserInstructions: false
+        )
+    }
+
+    private static let askInstructions = """
+    Você responde perguntas sobre as reuniões gravadas pela pessoa. Você recebe trechos dessas reuniões: \
+    título, data, resumo e falas no formato [mm:ss] Nome: texto ("Você" é a própria pessoa). Responda em \
+    poucas frases, no idioma da pergunta, só com o que está nos trechos. Quando a informação vier de uma \
+    fala, cite a origem logo depois, no formato [título · mm:ss], copiando o título exatamente como está. \
+    Se a resposta não estiver nos trechos, diga que não encontrou isso nas reuniões.
+    """
+
+    static func askMeetings(_ question: String, context: String) async throws -> String {
+        try await complete(system: askInstructions, user: "Trechos das reuniões:\n\n\(context)\n\nPergunta: \(question)")
+    }
+
     /// Applies a spoken instruction to the selected text, or writes new text when nothing is selected.
     static func command(_ instruction: String, selection: String?) async throws -> String {
         guard let selection, !selection.isEmpty else {

@@ -10,11 +10,13 @@ public sealed class TrayIcon : IDisposable
 {
     private readonly Forms.NotifyIcon icon;
     private readonly Forms.ToolStripMenuItem statusItem;
+    private readonly Forms.ContextMenuStrip menu;
+    private Forms.ToolStripMenuItem? meetingItem;
 
     public TrayIcon(Action open, Action copyLast, Action quit)
     {
         statusItem = new Forms.ToolStripMenuItem("Iniciando…") { Enabled = false };
-        var menu = new Forms.ContextMenuStrip();
+        menu = new Forms.ContextMenuStrip();
         menu.Items.Add(statusItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Abrir Lidiflow", null, (_, _) => open());
@@ -44,6 +46,18 @@ public sealed class TrayIcon : IDisposable
             var tip = "Lidiflow — " + value;
             icon.Text = tip.Length > 63 ? tip[..62] + "…" : tip;
         }
+    }
+
+    /// Adds "Gravar reunião" under "Abrir Lidiflow"; its text follows SetMeetingRecording.
+    public void SetMeetingAction(Action toggle)
+    {
+        meetingItem = new Forms.ToolStripMenuItem("Gravar reunião", null, (_, _) => toggle());
+        menu.Items.Insert(3, meetingItem);
+    }
+
+    public void SetMeetingRecording(bool recording)
+    {
+        if (meetingItem != null) meetingItem.Text = recording ? "Parar gravação da reunião" : "Gravar reunião";
     }
 
     private static Icon LoadIcon()

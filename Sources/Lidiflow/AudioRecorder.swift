@@ -16,14 +16,17 @@ final class AudioRecorder: NSObject, AVCaptureAudioDataOutputSampleBufferDelegat
     static let sampleRate: Double = 16_000
 
     var onLevel: (Float) -> Void = { _ in }
+    /// Every chunk as it arrives, for recordings written straight to disk (meetings).
+    var onSamples: (([Float]) -> Void)?
 
     private var session: AVCaptureSession?
     /// Delivers the buffers in order; `stop()` drains it so the last words are not cut.
     private let queue = DispatchQueue(label: "com.lidiflow.recorder")
     private var samples: [Float] = []
     private let lock = NSLock()
-    /// False for a recorder that only reports levels (the microphone test in Ajustes).
-    private let keepsSamples: Bool
+    /// False for a recorder that only reports levels (the microphone test in Ajustes), or a long one that streams
+    /// through `onSamples` instead of piling up in memory (meetings).
+    var keepsSamples: Bool
 
     init(keepsSamples: Bool = true) {
         self.keepsSamples = keepsSamples
@@ -80,6 +83,7 @@ final class AudioRecorder: NSObject, AVCaptureAudioDataOutputSampleBufferDelegat
         guard count > 0 else { return }
         let chunk = pointer.withMemoryRebound(to: Float.self, capacity: count) { Array(UnsafeBufferPointer(start: $0, count: count)) }
         if keepsSamples { lock.withLock { samples.append(contentsOf: chunk) } }
+        onSamples?(chunk)
 
         // A level per ~40 ms rather than per buffer (often ~100 ms), so the waveform moves smoothly.
         let step = Int(Self.sampleRate * 0.04)

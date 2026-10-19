@@ -19,6 +19,7 @@
             <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Style="{StaticResource Subtle}" FontSize="12" Margin="8" />
             <ListBox x:Name="Nav" BorderThickness="0" Background="Transparent" SelectionChanged="Nav_SelectionChanged">
                 <ListBoxItem Content="Início" Tag="home" Padding="12,8" />
+                <ListBoxItem Content="Reuniões" Tag="meetings" Padding="12,8" />
                 <ListBoxItem Content="Modelos" Tag="models" Padding="12,8" />
                 <ListBoxItem Content="Transforms" Tag="transforms" Padding="12,8" />
                 <ListBoxItem Content="Dicionário e snippets" Tag="dictionary" Padding="12,8" />

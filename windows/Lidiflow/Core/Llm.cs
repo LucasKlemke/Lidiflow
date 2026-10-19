@@ -88,6 +88,56 @@ public static class Llm
         EditInstructions,
         $"TEXTO:\n{text}\n\nINSTRUÇÃO:\n{instruction}\n\nResponda no idioma do TEXTO, salvo se a instrução pedir tradução.");
 
+    // The same text as the Mac (Sources/Lidiflow/LLM.swift). Tested with the Qwen 2.5 3B: a template to fill, and the
+    // rule that "Eles" lines belong to the others, keep small models from skipping sections or giving the others'
+    // tasks to "você".
+    private const string MeetingInstructions =
+        "Você resume reuniões para a pessoa que gravou. A transcrição vem com uma fala por linha: \"[mm:ss] Quem: …\". \"Você\" é a pessoa que gravou; as outras falas vêm com o nome da pessoa ou \"Pessoa N\" (\"Eles\" quando não foi possível separar as vozes). Quem diz \"eu faço\" numa fala de outra pessoa é essa pessoa, não você.\n\n" +
+        "Escreva em segunda pessoa: \"você\" para quem gravou, e os outros pelo nome (ou \"os participantes\"). Nas Tarefas, comece cada linha com o dono: \"Você:\", o nome da pessoa, ou \"Participantes:\" quando não der para saber.\n\n" +
+        "Responda preenchendo exatamente o modelo que vem depois da transcrição: as quatro seções, nessa ordem, sem nada antes ou depois. Use só o que foi dito; não invente nomes, datas, números nem decisões. Seção sem conteúdo leva \"- Nenhuma.\".";
+
+    private const string MeetingTemplate =
+        "Modelo a preencher:\n" +
+        "## Resumo\n(3 a 6 frases sobre o que foi tratado)\n\n" +
+        "## Decisões\n- (cada decisão tomada, uma por linha)\n\n" +
+        "## Tarefas\n- (Você:, o nome da pessoa ou Participantes:, o quê, e o prazo se foi dito)\n\n" +
+        "## Pontos em aberto\n- (o que ficou sem resposta ou sem decisão)";
+
+    private const string MeetingNotesInstructions =
+        "Você recebe um trecho da transcrição de uma reunião, uma fala por linha no formato [mm:ss] Quem: texto " +
+        "(\"Você\" é quem gravou; as outras falas vêm com o nome da pessoa, \"Pessoa N\" ou \"Eles\"). Anote, no idioma " +
+        "da reunião e só com o que foi dito, os assuntos, as decisões, as tarefas (Você:, o nome da pessoa ou " +
+        "Participantes:, o quê, prazo) e os pontos em aberto deste trecho, em tópicos curtos.";
+
+    /// The meeting summary in Markdown (docs/reunioes.md). A transcript over 8,000 characters is noted in parts
+    /// first: small local models have a short context window and would otherwise read only its beginning.
+    public static async Task<string> SummarizeMeetingAsync(string transcript)
+    {
+        var parts = MeetingTranscript.SplitForSummary(transcript);
+        if (parts.Count <= 1)
+            return await CompleteAsync(MeetingInstructions, $"Transcrição:\n{transcript}\n\n{MeetingTemplate}", 300);
+        var notes = new List<string>();
+        for (int i = 0; i < parts.Count; i++)
+        {
+            var note = await CompleteAsync(MeetingNotesInstructions, parts[i], 300);
+            notes.Add($"Parte {i + 1} de {parts.Count}:\n{note}");
+        }
+        return await CompleteAsync(MeetingInstructions,
+            "Em vez da transcrição completa, estas são as anotações de cada parte da reunião, em ordem:\n\n"
+            + string.Join("\n\n", notes) + $"\n\n{MeetingTemplate}", 300);
+    }
+
+    private const string AskInstructions =
+        "Você responde perguntas sobre as reuniões gravadas pela pessoa. Você recebe trechos de uma ou mais reuniões " +
+        "(título, data, resumo e falas no formato [mm:ss] Quem: texto) e a pergunta. Responda só com o que está nos " +
+        "trechos, em poucas frases, no idioma da pergunta. Quando a informação vier de uma fala, cite a origem como " +
+        "[título · mm:ss], com o título da reunião e o horário da fala. Se a resposta não estiver nos trechos, diga que " +
+        "não encontrou isso nas reuniões.";
+
+    /// Answers a question from the meetings' excerpts chosen by MeetingSearch (docs/reunioes.md, "Fase 4").
+    public static Task<string> AskMeetingsAsync(string question, string context) =>
+        CompleteAsync(AskInstructions, $"Trechos das reuniões:\n{context}\n\nPergunta: {question}", 180);
+
     /// Content-aware transform suggestions.
     public static async Task<List<Transform>> SuggestTransformsAsync(string text)
     {
@@ -109,7 +159,7 @@ public static class Llm
         return result;
     }
 
-    private static async Task<string> CompleteAsync(string system, string user)
+    private static async Task<string> CompleteAsync(string system, string user, double timeout = 60)
     {
         var settings = AppSettings.Current;
         var provider = settings.AiProvider;
@@ -128,7 +178,7 @@ public static class Llm
         int status;
         try
         {
-            using var deadline = Http.Deadline(60);
+            using var deadline = Http.Deadline(timeout);
             using var response = await Http.Client.SendAsync(request, deadline.Token);
             status = (int)response.StatusCode;
             body = await response.Content.ReadAsStringAsync(deadline.Token);

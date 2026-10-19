@@ -34,6 +34,8 @@ public partial class SettingsPage : UserControl
         Select(LanguageBox, model.Language);
         SoundsBox.IsChecked = model.SoundsEnabled;
         DictationBarBox.IsChecked = model.ShowsDictationBar;
+        DetectMeetingsBox.IsChecked = model.DetectMeetings;
+        AutoRecordBox.IsChecked = model.AutoRecordMeetings;
         PolishBox.IsChecked = model.PolishEnabled;
         StartupBox.IsChecked = model.LaunchAtStartup;
         loading = false;
@@ -73,6 +75,14 @@ public partial class SettingsPage : UserControl
     }
 
     private void DictationBar_Click(object sender, RoutedEventArgs e) => model.ShowsDictationBar = DictationBarBox.IsChecked == true;
+
+    private void DetectMeetings_Click(object sender, RoutedEventArgs e) => model.DetectMeetings = DetectMeetingsBox.IsChecked == true;
+
+    private void AutoRecord_Click(object sender, RoutedEventArgs e)
+    {
+        model.AutoRecordMeetings = AutoRecordBox.IsChecked == true;
+        model.AutoRecordAsked = true;
+    }
 
     private void Sounds_Click(object sender, RoutedEventArgs e) => model.SoundsEnabled = SoundsBox.IsChecked == true;
 
