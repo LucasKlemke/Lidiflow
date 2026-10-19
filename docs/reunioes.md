@@ -318,3 +318,14 @@ tempo esgotado deixam como está.
 
 Nomes automáticos pelo Zoom/Meet (ver fase 3), aviso antes de uma reunião do calendário começar, pastas,
 compartilhar, histórico de perguntas.
+
+# Ditado sem lugar para colar
+
+Vale para o ditado em geral, não só para reuniões. Quando o ditado termina e o foco não está num campo de texto (a mesma checagem que já decide colar ou não), a barra mostra um card no lugar da antiga dica de uma linha:
+
+- 380×124, fundo preto translúcido, cantos 10, inclusive nas laterais: o card fica deitado encostado na borda, como o aviso de reunião.
+- Linha 1: ícone de cursor de texto (azul claro), "Nenhum campo de texto para colar", × à direita (fecha).
+- Linha 2: o texto ditado, até 2 linhas com reticências; o texto inteiro aparece no tooltip.
+- Linha 3: "Ou cole depois com" + as teclas do atalho de colar o último (some se não houver atalho); à direita, o botão branco "Copiar" (altura 28, cantos 8), que vira "✓ Copiado" e fecha o card 1,2 s depois.
+- Copiar troca a área de transferência de propósito: aqui é a pessoa que pediu.
+- Some sozinho em 12 s; com o mouse em cima, espera até o mouse sair (checa de 3 em 3 s). Um novo ditado substitui o card.

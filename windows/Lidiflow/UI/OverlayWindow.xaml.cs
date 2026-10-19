@@ -15,7 +15,7 @@ using Lidiflow.Platform;
 
 namespace Lidiflow.UI;
 
-public enum OverlayPhase { Hidden, Listening, HandsFree, Command, Transcribing, Polishing, Thinking, Transforming, Error, Tip }
+public enum OverlayPhase { Hidden, Listening, HandsFree, Command, Transcribing, Polishing, Thinking, Transforming, Error, Unplaced }
 
 /// The dictation bar, docked at the bottom or on a side of the monitor under the mouse. Idle, it is a small handle
 /// that grows on hover into a "Ditar" button; while dictating it shows the waveform with cancel and finish buttons;
@@ -50,7 +50,9 @@ public partial class OverlayWindow : Window
     private static readonly Size Idle = new(44, 8), IdleSide = new(8, 44);
     private static readonly Size Hovered = new(204, 36), HoveredSide = new(52, 148);
     private static readonly Size Recording = new(300, 40), RecordingSide = new(40, 104);
-    private static readonly Size Busy = new(260, 40), BusySide = new(40, 40), TipSize = new(380, 40);
+    private static readonly Size Busy = new(260, 40), BusySide = new(40, 40);
+    // A dictation with nowhere to paste: lying against a side edge too, like the cards below.
+    private static readonly Size UnplacedSize = new(380, 124);
     // While a meeting is recorded and nothing is being dictated (docs/reunioes.md).
     private static readonly Size MeetingPill = new(112, 28), MeetingPillSide = new(32, 84);
     // The pill under the mouse: the meeting's controls, never the dictation bar.
@@ -80,6 +82,8 @@ public partial class OverlayWindow : Window
     private DispatcherTimer? resizeTimer;
     private readonly LivePanelWindow livePanel = new();
     private bool liveOpen;
+    private IReadOnlyList<string> pasteKeys = Array.Empty<string>();
+    private bool copied;
     private static BitmapImage? symbol;
 
     /// A card shown in the bar outside dictation: a detected call, a call that ended, "Começou sem querer?".
@@ -108,6 +112,8 @@ public partial class OverlayWindow : Window
     public Action OnStop { get; set; } = () => { };
     public Action OnCancel { get; set; } = () => { };
     public Action OnPasteLast { get; set; } = () => { };
+    public Action OnCopyUnplaced { get; set; } = () => { };
+    public Action OnDismissUnplaced { get; set; } = () => { };
     public Action OnOpenApp { get; set; } = () => { };
     public Func<string> CurrentMicrophone { get; set; } = () => Microphones.Automatic;
     public Action<string> OnSelectMicrophone { get; set; } = _ => { };
@@ -173,6 +179,13 @@ public partial class OverlayWindow : Window
             var level = Math.Min(value * 12, 1);
             for (int i = 0; i < bars.Length; i++) bars[i].Height = 4 + 18 * level * Weights[i];
         }
+    }
+
+    /// The shortcut that pastes the last dictation, for the "nowhere to paste" card.
+    public IReadOnlyList<string> PasteKeys
+    {
+        get => pasteKeys;
+        set => pasteKeys = value;
     }
 
     public IReadOnlyList<string> DictateKeys
@@ -324,6 +337,7 @@ public partial class OverlayWindow : Window
     {
         phase = newPhase;
         detail = newDetail;
+        copied = false;
         if (phase != OverlayPhase.Hidden) hovering = false;
         Render();
         Place();
@@ -346,7 +360,7 @@ public partial class OverlayWindow : Window
         OverlayPhase.Transcribing => "Transcrevendo…",
         OverlayPhase.Polishing => "Ajustando texto…",
         OverlayPhase.Transforming => $"✨ {detail}…",
-        OverlayPhase.Error or OverlayPhase.Tip => detail ?? "",
+        OverlayPhase.Error => detail ?? "",
         _ => "",
     };
 
@@ -366,7 +380,7 @@ public partial class OverlayWindow : Window
             return Side ? IdleSide : Idle;
         }
         if (IsRecording) return Side ? RecordingSide : Recording;
-        if (phase == OverlayPhase.Tip) return Side ? BusySide : TipSize;
+        if (phase == OverlayPhase.Unplaced) return UnplacedSize;
         return Side ? BusySide : Busy;
     }
 
@@ -401,6 +415,10 @@ public partial class OverlayWindow : Window
         else if (IsRecording)
         {
             Root.Child = Side ? RecordingSideContent() : RecordingContent();
+        }
+        else if (phase == OverlayPhase.Unplaced)
+        {
+            Root.Child = UnplacedContent();
         }
         else
         {
@@ -607,7 +625,7 @@ public partial class OverlayWindow : Window
         row.Children.Add(mic);
         var left = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         left.Children.Add(Text("Ditar", 13));
-        if (dictateKeys.Count > 0) left.Children.Add(KeyCaps(new Thickness(8, 0, 0, 0)));
+        if (dictateKeys.Count > 0) left.Children.Add(KeyCaps(dictateKeys, new Thickness(8, 0, 0, 0)));
         row.Children.Add(left);
         return row;
     }
@@ -618,7 +636,7 @@ public partial class OverlayWindow : Window
         var label = Text("Ditar", 11);
         label.HorizontalAlignment = HorizontalAlignment.Center;
         column.Children.Add(label);
-        if (dictateKeys.Count > 0) column.Children.Add(KeyCaps(new Thickness(0, 6, 0, 0)));
+        if (dictateKeys.Count > 0) column.Children.Add(KeyCaps(dictateKeys, new Thickness(0, 6, 0, 0)));
         var mic = ActionButton("", Accent, "Ditar sem segurar a tecla", () => OnDictate());
         mic.Margin = new Thickness(0, 6, 0, 0);
         column.Children.Add(mic);
@@ -662,6 +680,59 @@ public partial class OverlayWindow : Window
         return column;
     }
 
+    /// A dictation that found no text box: what was said, to copy, or paste later with the shortcut.
+    private UIElement UnplacedContent()
+    {
+        var text = detail ?? "";
+        var column = new DockPanel { Margin = new Thickness(14, 12, 14, 12), LastChildFill = true };
+
+        var header = new DockPanel { LastChildFill = true };
+        var close = ActionButton("\uE711", Brushes.Transparent, "Fechar", () => OnDismissUnplaced(), 20);
+        DockPanel.SetDock(close, Dock.Right);
+        header.Children.Add(close);
+        var cursor = Glyph("\uE77F", Accent, 12);
+        DockPanel.SetDock(cursor, Dock.Left);
+        header.Children.Add(cursor);
+        var title = Text("Nenhum campo de texto para colar", 13);
+        title.Margin = new Thickness(8, 0, 0, 0);
+        header.Children.Add(title);
+        DockPanel.SetDock(header, Dock.Top);
+        column.Children.Add(header);
+
+        var footer = new DockPanel { LastChildFill = false };
+        var copy = PrimaryButton(copied ? "\u2713 Copiado" : "Copiar", false, CopyUnplaced);
+        copy.Height = 28;
+        DockPanel.SetDock(copy, Dock.Right);
+        footer.Children.Add(copy);
+        if (pasteKeys.Count > 0)
+        {
+            var hint = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            hint.Children.Add(new TextBlock
+            {
+                Text = "Ou cole depois com", FontSize = 11, Foreground = Frozen(WhiteColor, 0.5), VerticalAlignment = VerticalAlignment.Center,
+            });
+            hint.Children.Add(KeyCaps(pasteKeys, new Thickness(6, 0, 0, 0)));
+            footer.Children.Add(hint);
+        }
+        DockPanel.SetDock(footer, Dock.Bottom);
+        column.Children.Add(footer);
+
+        column.Children.Add(new TextBlock
+        {
+            Text = text, FontSize = 12, Foreground = Frozen(WhiteColor, 0.85), TextWrapping = TextWrapping.Wrap,
+            TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 34, Margin = new Thickness(0, 8, 0, 8),
+            VerticalAlignment = VerticalAlignment.Top, ToolTip = text,
+        });
+        return column;
+    }
+
+    private void CopyUnplaced()
+    {
+        OnCopyUnplaced();
+        copied = true;
+        Render();
+    }
+
     private UIElement BusyContent()
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(16, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
@@ -675,7 +746,6 @@ public partial class OverlayWindow : Window
     private FrameworkElement StatusIcon()
     {
         if (phase == OverlayPhase.Error) return Glyph("", Warning, 15);
-        if (phase == OverlayPhase.Tip) return Glyph("", White, 15);
         var spinner = new System.Windows.Shapes.Path
         {
             Width = 16, Height = 16, Stroke = White, StrokeThickness = 2, Stretch = Stretch.None,
@@ -712,10 +782,10 @@ public partial class OverlayWindow : Window
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
     };
 
-    private UIElement KeyCaps(Thickness margin)
+    private static UIElement KeyCaps(IReadOnlyList<string> keys, Thickness margin)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = margin, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        foreach (var key in dictateKeys)
+        foreach (var key in keys)
         {
             row.Children.Add(new Border
             {

@@ -361,6 +361,16 @@ final class AppController: NSObject, NSApplicationDelegate {
         bar.onPasteLast = { [weak self] in
             if let last = self?.model.history.first { TextInserter.insert(last.text) }
         }
+        // Copying is the person's choice here, so it replaces the clipboard on purpose.
+        bar.onCopyUnplaced = { [weak self] in
+            guard case .unplaced(let text) = self?.overlay.state.phase else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                if self?.overlay.state.phase == .unplaced(text) { self?.overlay.show(.hidden) }
+            }
+        }
+        bar.onDismissUnplaced = { [weak self] in self?.overlay.show(.hidden) }
         bar.onOpenApp = { [weak self] in self?.mainWindow.show() }
         bar.microphones = model.microphones
         bar.onSelectMicrophone = { [weak self] in self?.model.microphone = $0 }
@@ -445,7 +455,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 model.add(Dictation(date: Date(), text: text, duration: duration))
                 // Like a person would, paste only into a text box; otherwise keep it for the paste shortcut.
                 if TextInserter.focusedTarget() == .notEditable {
-                    showTip(pasteTip)
+                    showUnplaced(text)
                 } else {
                     overlay.show(.hidden)
                     TextInserter.insert(text)
@@ -503,16 +513,18 @@ final class AppController: NSObject, NSApplicationDelegate {
         return TextProcessor.apply(text, replacements: model.replacements, snippets: model.snippets)
     }
 
-    private var pasteTip: String {
-        let keys = model.keys(for: .pasteLast)
-        return keys.isEmpty ? "Ditado guardado: clique num campo de texto e cole pelo menu da barra"
-                            : "Clique num campo de texto e use \(keys.joined(separator: " ")) para colar"
+    /// The card stays 12 s, longer while the mouse is on it, so the text can be read and copied.
+    private func showUnplaced(_ text: String) {
+        overlay.state.pasteKeys = model.keys(for: .pasteLast)
+        overlay.show(.unplaced(text))
+        scheduleUnplacedDismiss(after: 12, text: text)
     }
 
-    private func showTip(_ message: String) {
-        overlay.show(.tip(message))
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
-            if case .tip = self?.overlay.state.phase { self?.overlay.show(.hidden) }
+    private func scheduleUnplacedDismiss(after seconds: TimeInterval, text: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+            guard let self, self.overlay.state.phase == .unplaced(text) else { return }
+            if self.overlay.state.hovering { return self.scheduleUnplacedDismiss(after: 3, text: text) }
+            self.overlay.show(.hidden)
         }
     }
 

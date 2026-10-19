@@ -275,6 +275,17 @@ public sealed class AppController
         overlay.OnDictate = ToggleHandsFree;
         overlay.OnStop = () => { if (session != null) _ = FinishAsync(); };
         overlay.OnCancel = Cancel;
+        // Copying is the person's choice here, so it replaces the clipboard on purpose.
+        overlay.OnCopyUnplaced = async () =>
+        {
+            if (model.History.Count == 0) return;
+            try { System.Windows.Clipboard.SetText(model.History[0].Text); }
+            catch (Exception e) { Log.Write("Copy dictation: " + e.Message); return; }
+            int token = errorToken;
+            await Task.Delay(1200);
+            if (token == errorToken) ShowOverlay(OverlayPhase.Hidden);
+        };
+        overlay.OnDismissUnplaced = () => ShowOverlay(OverlayPhase.Hidden);
         overlay.OnPasteLast = () => { if (model.History.Count > 0) _ = PasteLastAsync(model.History[0].Text); };
         overlay.OnOpenApp = ShowMainWindow;
         overlay.CurrentMicrophone = () => model.Microphone;
@@ -544,7 +555,7 @@ public sealed class AppController
             // Paste only into a text box; otherwise keep it, without touching the clipboard, for the paste shortcut.
             if (await TextInserter.FocusedTargetAsync() == TextInserter.Target.NotEditable)
             {
-                ShowTip(PasteTip());
+                ShowUnplaced(text);
             }
             else
             {
@@ -591,18 +602,14 @@ public sealed class AppController
         overlay.Display(phase, detail);
     }
 
-    private string PasteTip()
+    /// The card stays 12 s, longer while the mouse is on it, so the text can be read and copied.
+    private async void ShowUnplaced(string text)
     {
-        var combo = model.CombosFor(ShortcutAction.PasteLast).FirstOrDefault();
-        return combo == null ? "Ditado guardado: clique num campo de texto e cole pelo menu da barra"
-                             : $"Clique num campo de texto e use {combo.Label} para colar";
-    }
-
-    private async void ShowTip(string message)
-    {
-        ShowOverlay(OverlayPhase.Tip, message);
+        overlay.PasteKeys = model.CombosFor(ShortcutAction.PasteLast).FirstOrDefault()?.Keys ?? new List<string>();
+        ShowOverlay(OverlayPhase.Unplaced, text);
         int token = errorToken;
-        await Task.Delay(5000);
+        await Task.Delay(12000);
+        while (token == errorToken && overlay.IsMouseOver) await Task.Delay(3000);
         if (token == errorToken) ShowOverlay(OverlayPhase.Hidden);
     }
 
