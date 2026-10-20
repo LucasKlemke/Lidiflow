@@ -60,6 +60,37 @@ public sealed class AppModel : ObservableObject
     public ModelManager Models { get; } = new();
     public OllamaManager Ollama { get; } = new();
 
+    // MARK: - Meetings (docs/reunioes.md)
+
+    private Meeting? recordingMeeting;
+    private TimeSpan meetingElapsed;
+
+    /// Newest first, as on disk.
+    public ObservableCollection<Meeting> Meetings { get; } = new(MeetingStore.LoadAll());
+
+    /// The meeting being recorded, if any.
+    public Meeting? RecordingMeeting
+    {
+        get => recordingMeeting;
+        set { if (SetField(ref recordingMeeting, value)) OnPropertyChanged(nameof(IsMeetingRecording)); }
+    }
+
+    public bool IsMeetingRecording => recordingMeeting != null;
+
+    public TimeSpan MeetingElapsed { get => meetingElapsed; set => SetField(ref meetingElapsed, value); }
+
+    /// Set by the controller: start or stop recording a meeting; write a meeting's summary again.
+    public Action? ToggleMeeting { get; set; }
+    public Action<Meeting>? ResummarizeMeeting { get; set; }
+
+    public void DeleteMeeting(Meeting meeting)
+    {
+        if (meeting == recordingMeeting) return;
+        // Also while it is being processed: the processor sees Discarded and stops (see MeetingProcessor).
+        MeetingStore.Delete(meeting);
+        Meetings.Remove(meeting);
+    }
+
     public event Action? ShortcutsChanged;
     /// Raised when the transcription engine, local model or its API key changes.
     public event Action? EngineChanged;
@@ -84,6 +115,45 @@ public sealed class AppModel : ObservableObject
         get => settings.Theme;
         set { settings.Theme = value; Save(); ApplyTheme(value); }
     }
+
+    public string Microphone
+    {
+        get => settings.Microphone;
+        set { settings.Microphone = value; Save(); }
+    }
+
+    public bool ShowsDictationBar
+    {
+        get => settings.ShowsDictationBar;
+        set { settings.ShowsDictationBar = value; Save(); OnPropertyChanged(); }
+    }
+
+    public string DictationBarEdge
+    {
+        get => settings.DictationBarEdge;
+        set { settings.DictationBarEdge = value; Save(); }
+    }
+
+    public bool DetectMeetings
+    {
+        get => settings.DetectMeetings;
+        set { settings.DetectMeetings = value; Save(); }
+    }
+
+    public bool AutoRecordMeetings
+    {
+        get => settings.AutoRecordMeetings;
+        set { settings.AutoRecordMeetings = value; Save(); OnPropertyChanged(); }
+    }
+
+    public bool AutoRecordAsked
+    {
+        get => settings.AutoRecordAsked;
+        set { settings.AutoRecordAsked = value; Save(); OnPropertyChanged(); }
+    }
+
+    /// Set by the main window: opens Ajustes (the gear on the Reuniões page).
+    public Action? ShowSettings { get; set; }
 
     public bool SoundsEnabled
     {

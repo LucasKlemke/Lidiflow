@@ -5,10 +5,12 @@ import SwiftUI
 /// The app's main window. The Dock icon is shown only while it is open.
 final class MainWindowController: NSObject, NSWindowDelegate {
     private let model: AppModel
+    private let meetings: MeetingCenter
     private var window: NSWindow?
 
-    init(model: AppModel) {
+    init(model: AppModel, meetings: MeetingCenter) {
         self.model = model
+        self.meetings = meetings
     }
 
     func show() {
@@ -24,7 +26,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
             window.titlebarAppearsTransparent = true
             window.minSize = NSSize(width: 820, height: 560)
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: MainView(model: model))
+            window.contentView = NSHostingView(rootView: MainView(model: model, meetings: meetings))
             window.center()
             window.setFrameAutosaveName("LidiflowMain")
             window.delegate = self
@@ -43,6 +45,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
 enum SidebarItem: String, CaseIterable, Identifiable {
     case home = "Início"
     case history = "Histórico"
+    case meetings = "Reuniões"
     case transforms = "Transforms"
     case dictionary = "Dicionário"
     case snippets = "Snippets"
@@ -56,6 +59,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         switch self {
         case .home: return "house"
         case .history: return "clock"
+        case .meetings: return "video"
         case .transforms: return "wand.and.stars"
         case .dictionary: return "character.book.closed"
         case .snippets: return "text.badge.plus"
@@ -67,7 +71,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 
     /// Items grouped under a quiet label in the sidebar.
     static let groups: [(String?, [SidebarItem])] = [
-        (nil, [.home, .history]),
+        (nil, [.home, .history, .meetings]),
         ("Ferramentas", [.transforms, .dictionary, .snippets]),
         ("Configurar", [.models, .usage, .settings]),
     ]
@@ -75,6 +79,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 
 struct MainView: View {
     @ObservedObject var model: AppModel
+    let meetings: MeetingCenter
     /// Opens on Início, or on the page named by the `-section` launch argument (e.g. `-section Modelos`).
     @State private var section = SidebarItem(rawValue: UserDefaults.standard.string(forKey: "section") ?? "") ?? .home
 
@@ -88,12 +93,13 @@ struct MainView: View {
                 switch section {
                 case .home: HomeView(model: model, showHistory: { section = .history }, showModels: { section = .models })
                 case .history: HistoryView(model: model)
+                case .meetings: MeetingsView(meetings: meetings, model: model, openSettings: { section = .settings })
                 case .transforms: TransformsView(model: model)
                 case .dictionary: DictionaryView(model: model)
                 case .snippets: SnippetsView(model: model)
                 case .models: ModelsView(model: model, manager: model.models)
                 case .usage: UsageView(log: UsageLog.shared)
-                case .settings: SettingsView(model: model)
+                case .settings: SettingsView(model: model, meetings: meetings)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -229,8 +235,12 @@ private struct SidebarButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
+                // Every symbol fitted in the same box: wide ones (Reuniões) would otherwise spill out and break the column.
                 Image(systemName: item.icon)
-                    .font(.system(size: 13, weight: .medium))
+                    .resizable()
+                    .scaledToFit()
+                    .fontWeight(.medium)
+                    .frame(width: 16, height: 15)
                     .frame(width: 18)
                 Text(item.rawValue)
                     .font(.system(size: 13, weight: selected ? .semibold : .regular))

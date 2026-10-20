@@ -1,5 +1,7 @@
 import AppKit
 import AVFoundation
+import OSLog
+import ServiceManagement
 
 struct Dictation: Codable, Identifiable, Hashable {
     var id = UUID()
@@ -45,6 +47,33 @@ final class AppModel: ObservableObject {
     }
     @Published var microphone = Settings.microphone {
         didSet { Settings.microphone = microphone }
+    }
+    @Published var autoRecordMeetings = Settings.autoRecordMeetings {
+        didSet { Settings.autoRecordMeetings = autoRecordMeetings }
+    }
+    @Published var autoRecordAsked = Settings.autoRecordAsked {
+        didSet { Settings.autoRecordAsked = autoRecordAsked }
+    }
+    @Published var detectMeetings = Settings.detectMeetings {
+        didSet { Settings.detectMeetings = detectMeetings }
+    }
+    /// Starts Lidiflow when the user logs in to the Mac. The system keeps this, not UserDefaults.
+    @Published var launchAtLogin = SMAppService.mainApp.status == .enabled {
+        didSet {
+            let service = SMAppService.mainApp
+            guard launchAtLogin != (service.status == .enabled) else { return }
+            do {
+                if launchAtLogin { try service.register() } else { try service.unregister() }
+                // Some Macs ask the user to allow it in System Settings first.
+                if service.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
+            } catch {
+                Logger(subsystem: "com.lidiflow.app", category: "login").error("Login item: \(error.localizedDescription)")
+                launchAtLogin = service.status == .enabled
+            }
+        }
+    }
+    @Published var showsDictationBar = Settings.showsDictationBar {
+        didSet { Settings.showsDictationBar = showsDictationBar }
     }
     @Published var soundsEnabled = Settings.soundsEnabled {
         didSet { Settings.soundsEnabled = soundsEnabled }
@@ -249,7 +278,7 @@ final class AppModel: ObservableObject {
             if combo.isModifierOnly { return "Transforms precisam de uma tecla ou botão do mouse" }
         }
         if !combo.isUsable(allowPlainKeys: editedAction == .cancel) {
-            return "Use um modificador (⌘ ⌃ ⌥ ⇧ Fn), uma tecla F ou um botão do mouse"
+            return "Use um modificador (⌘ ⌃ ⌥ Shift Fn), uma tecla F ou um botão do mouse"
         }
         for (action, combos) in shortcuts where combos.contains(combo) {
             return action == editedAction ? "Esse atalho já está nesta ação" : "Já usado para \(action.title.lowercased())"

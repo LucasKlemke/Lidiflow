@@ -7,7 +7,7 @@ using NAudio.Wave;
 
 namespace Lidiflow.Platform;
 
-/// Captures the default microphone as 16 kHz mono 16-bit PCM, which is what Whisper expects.
+/// Captures the chosen microphone (see Microphones) as 16 kHz mono 16-bit PCM, which is what Whisper expects.
 /// Windows' audio engine does the resampling.
 public sealed class AudioRecorder
 {
@@ -46,8 +46,9 @@ public sealed class AudioRecorder
         public Capture(AudioRecorder owner)
         {
             this.owner = owner;
-            // Device -1 is WAVE_MAPPER: the default recording device chosen in Windows.
-            wave = new WaveInEvent { DeviceNumber = -1, WaveFormat = new WaveFormat(SampleRate, 16, 1), BufferMilliseconds = 50 };
+            // -1 is WAVE_MAPPER, the default recording device chosen in Windows.
+            var device = Microphones.Resolve(Core.AppSettings.Current.Microphone);
+            wave = new WaveInEvent { DeviceNumber = device, WaveFormat = new WaveFormat(SampleRate, 16, 1), BufferMilliseconds = 50 };
             wave.DataAvailable += OnData;
             wave.RecordingStopped += (_, _) => stopped.TrySetResult(true);
         }

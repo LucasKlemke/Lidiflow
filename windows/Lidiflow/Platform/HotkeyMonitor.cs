@@ -72,6 +72,12 @@ public sealed class HotkeyMonitor : IDisposable
     private readonly HashSet<int> recordModifierKeys = new();
 
     private const double ArmingDelay = 0.15;
+    /// A press of the dictation shortcut shorter than this is a tap; two taps this close start hands-free.
+    private const double TapLength = 0.3;
+    private const double DoubleTapGap = 0.4;
+    /// When the dictation shortcut went down, and when the last quick tap of it ended.
+    private DateTime? dictatePressedAt;
+    private DateTime? lastDictateTap;
 
     public HotkeyMonitor()
     {
@@ -312,6 +318,7 @@ public sealed class HotkeyMonitor : IDisposable
         if (inputHold is { } held && held.Key == vk)
         {
             inputHold = null;
+            if (held.Action == ShortcutAction.Dictate) DictateReleased();
             Emit(new HotkeyEvent(HotkeyKind.HoldEnd));
         }
         return !swallowedKeyUps.Remove(vk);
@@ -335,6 +342,7 @@ public sealed class HotkeyMonitor : IDisposable
         if (inputHold is { } held && held.Mouse == button)
         {
             inputHold = null;
+            if (held.Action == ShortcutAction.Dictate) DictateReleased();
             Emit(new HotkeyEvent(HotkeyKind.HoldEnd));
         }
         return !swallowedMouseUps.Remove(button);
@@ -417,6 +425,14 @@ public sealed class HotkeyMonitor : IDisposable
             Emit(new HotkeyEvent(HotkeyKind.Stop));
             return;
         }
+        if (action == ShortcutAction.Dictate && SecondTap())
+        {
+            hold = Hold.Consumed;
+            consumedFlags = combo.Modifiers;
+            Emit(new HotkeyEvent(HotkeyKind.HandsFree));
+            return;
+        }
+        if (action == ShortcutAction.Dictate) dictatePressedAt = DateTime.UtcNow;
         hold = Hold.Armed;
         holdAction = action;
         holdCombo = combo;
@@ -424,8 +440,25 @@ public sealed class HotkeyMonitor : IDisposable
         arming.Start();
     }
 
+    /// Remembers a quick tap of the dictation shortcut, the first half of a double tap.
+    private void DictateReleased()
+    {
+        if (dictatePressedAt is not { } pressed) return;
+        dictatePressedAt = null;
+        lastDictateTap = (DateTime.UtcNow - pressed).TotalSeconds < TapLength ? DateTime.UtcNow : null;
+    }
+
+    /// Whether this press is the second of a double tap; consumes the first so a third tap starts over.
+    private bool SecondTap()
+    {
+        var last = lastDictateTap;
+        lastDictateTap = null;
+        return last is { } t && (DateTime.UtcNow - t).TotalSeconds < DoubleTapGap;
+    }
+
     private void ReleaseModifierHold()
     {
+        if (hold is Hold.Armed or Hold.Active && holdAction == ShortcutAction.Dictate) DictateReleased();
         if (hold == Hold.Active) Emit(new HotkeyEvent(HotkeyKind.HoldEnd));
         arming.Stop();
         hold = Hold.None;
@@ -505,8 +538,13 @@ public sealed class HotkeyMonitor : IDisposable
                 {
                     Emit(new HotkeyEvent(HotkeyKind.Stop));
                 }
+                else if (action == ShortcutAction.Dictate && SecondTap())
+                {
+                    Emit(new HotkeyEvent(HotkeyKind.HandsFree));
+                }
                 else
                 {
+                    if (action == ShortcutAction.Dictate) dictatePressedAt = DateTime.UtcNow;
                     inputHold = (action, keyCode, mouseButton);
                     Emit(new HotkeyEvent(HotkeyKind.HoldStart, action));
                 }

@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import AVFoundation
 import Combine
 
@@ -17,8 +18,13 @@ final class AppController: NSObject, NSApplicationDelegate {
     private let transcribeEngine = TranscribeEngine()
     private let recorder = AudioRecorder()
     private let overlay = OverlayWindow()
-    private lazy var mainWindow = MainWindowController(model: model)
+    @MainActor private lazy var meetings = MeetingCenter()
+    @MainActor private lazy var detector = MeetingDetector()
+    private var offerTimeout: DispatchWorkItem?
+    private var mistakeTimeout: DispatchWorkItem?
+    private lazy var mainWindow = MainWindowController(model: model, meetings: MainActor.assumeIsolated { meetings })
     private lazy var onboarding = OnboardingWindowController(model: model) { [weak self] in self?.mainWindow.show() }
+    private let meetingItem = NSMenuItem(title: "Gravar reunião", action: nil, keyEquivalent: "")
     private let hotkey = HotkeyMonitor()
 
     private var statusItem: NSStatusItem!
@@ -28,6 +34,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var permissionTimer: Timer?
     private let updateItem = NSMenuItem(title: "", action: #selector(installUpdate), keyEquivalent: "")
     private var updateWatch: AnyCancellable?
+    private var subscriptions: Set<AnyCancellable> = []
 
     private static let minimumDuration: TimeInterval = 0.35
 
@@ -60,8 +67,11 @@ final class AppController: NSObject, NSApplicationDelegate {
         hotkey.shortcuts = model.shortcuts
         model.onShortcutsChange = { [weak self] shortcuts in
             self?.hotkey.shortcuts = shortcuts
+            self?.overlay.state.dictateKeys = self?.model.keys(for: .dictate) ?? []
             if self?.model.isReady == true { self?.setReady() }
         }
+        setUpDictationBar()
+        setUpMeetings()
         model.onEngineChange = { [weak self] in
             Task { @MainActor in await self?.prepareEngine() }
         }
@@ -111,6 +121,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { meetings.stopForQuit() }
         transcribeEngine.unloadNow()
         model.ollama.stop()
     }
@@ -234,6 +245,144 @@ final class AppController: NSObject, NSApplicationDelegate {
         session?.selection = Task { @MainActor in await TextInserter.selectedText() }
     }
 
+    /// Meetings share the dictation's transcription and corrections, and show in the bar and the menu.
+    @MainActor
+    private func setUpMeetings() {
+        meetings.transcribe = { [weak self] samples in
+            guard let self else { return "" }
+            return try await self.transcribe(samples)
+        }
+        meetings.correct = { [weak self] text in
+            TextProcessor.apply(text, replacements: self?.model.replacements ?? [], snippets: [])
+        }
+        overlay.state.onToggleMeeting = { [weak self] in self?.toggleMeeting() }
+        overlay.state.onStartMeeting = { [weak self] in
+            guard let self, self.meetings.recordingSince == nil else { return }
+            self.meetings.start()
+        }
+        overlay.state.onToggleLive = { [weak self] in
+            guard let self else { return }
+            self.overlay.state.liveVisible.toggle()
+        }
+        overlay.state.onResolveMistake = { [weak self] keep in
+            self?.mistakeTimeout?.cancel()
+            self?.meetings.resolveMistake(keep: keep)
+        }
+        overlay.state.onAcceptOffer = { [weak self] offer in
+            guard let self else { return }
+            self.clearOffer()
+            switch offer {
+            case .record(let app): self.meetings.start(app: app)
+            case .stop: self.meetings.stop()
+            }
+        }
+        // The detector reports each call once, so a dismissed offer does not come back for the same call.
+        overlay.state.onDismissOffer = { [weak self] in self?.clearOffer() }
+        detector.isEnabled = { [weak self] in self?.model.detectMeetings ?? false }
+        detector.onCallStarted = { [weak self] app in
+            guard let self, self.meetings.recordingSince == nil else { return }
+            if self.model.autoRecordMeetings {
+                self.meetings.start(app: app)
+            } else {
+                self.showOffer(.record(app: app), for: 20)
+            }
+        }
+        detector.onCallEnded = { [weak self] app in
+            guard let self else { return }
+            if self.meetings.recordingSince != nil {
+                if self.model.autoRecordMeetings { self.meetings.stop() } else { self.showOffer(.stop(app: app), for: 30) }
+            } else if case .record = self.overlay.state.offer {
+                self.clearOffer()
+            }
+        }
+        detector.start()
+        meetings.$recordingSince.sink { [weak self] since in
+            self?.overlay.state.meetingSince = since
+            // Recording started some other way: the offer to record is moot.
+            if since != nil, case .record = self?.overlay.state.offer { self?.clearOffer() }
+            self?.meetingItem.title = since == nil ? "Gravar reunião" : "Parar gravação da reunião"
+            // The live transcript belongs to the recording: it closes with it.
+            if since == nil { self?.overlay.state.liveVisible = false }
+            self?.overlay.layout()
+        }
+        .store(in: &subscriptions)
+        meetings.$live.sink { [weak self] live in
+            withAnimation(.easeOut(duration: 0.25)) { self?.overlay.state.meetingLive = live }
+        }
+        .store(in: &subscriptions)
+        // "Começou sem querer?" stays 15 s; with no answer the meeting is kept.
+        meetings.$suspectedMistake.sink { [weak self] id in
+            guard let self else { return }
+            self.mistakeTimeout?.cancel()
+            self.overlay.state.mistake = id != nil
+            self.overlay.layout()
+            guard id != nil else { return }
+            let timeout = DispatchWorkItem { [weak self] in
+                MainActor.assumeIsolated { self?.meetings.resolveMistake(keep: true) }
+            }
+            self.mistakeTimeout = timeout
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: timeout)
+        }
+        .store(in: &subscriptions)
+    }
+
+    @MainActor
+    private func showOffer(_ offer: MeetingOffer, for seconds: TimeInterval) {
+        offerTimeout?.cancel()
+        overlay.state.offer = offer
+        overlay.layout()
+        let timeout = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.clearOffer() }
+        }
+        offerTimeout = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: timeout)
+    }
+
+    @MainActor
+    private func clearOffer() {
+        offerTimeout?.cancel()
+        overlay.state.offer = nil
+        overlay.layout()
+    }
+
+    @MainActor @objc private func toggleMeeting() {
+        if meetings.recordingSince == nil { meetings.start() } else { meetings.stop() }
+    }
+
+    /// The bar's buttons and menu, and the settings it follows.
+    private func setUpDictationBar() {
+        let bar = overlay.state
+        bar.dictateKeys = model.keys(for: .dictate)
+        bar.onDictate = { [weak self] in self?.toggleHandsFree() }
+        bar.onStop = { [weak self] in
+            if self?.session != nil { self?.finish() }
+        }
+        bar.onCancel = { [weak self] in self?.cancel() }
+        bar.onPasteLast = { [weak self] in
+            if let last = self?.model.history.first { TextInserter.insert(last.text) }
+        }
+        // Copying is the person's choice here, so it replaces the clipboard on purpose.
+        bar.onCopyUnplaced = { [weak self] in
+            guard case .unplaced(let text) = self?.overlay.state.phase else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                if self?.overlay.state.phase == .unplaced(text) { self?.overlay.show(.hidden) }
+            }
+        }
+        bar.onDismissUnplaced = { [weak self] in self?.overlay.show(.hidden) }
+        bar.onOpenApp = { [weak self] in self?.mainWindow.show() }
+        bar.microphones = model.microphones
+        bar.onSelectMicrophone = { [weak self] in self?.model.microphone = $0 }
+        model.$microphone.sink { [weak self] in self?.overlay.state.microphone = $0 }.store(in: &subscriptions)
+        model.$showsDictationBar.sink { [weak self] in self?.overlay.showsIdleBar = $0 }.store(in: &subscriptions)
+        // Follow the Dock, resolution and monitor changes.
+        NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+            .sink { [weak self] _ in self?.overlay.layout() }
+            .store(in: &subscriptions)
+        overlay.layout()
+    }
+
     private func cancel() {
         guard session != nil else { return }
         discardRecording()
@@ -304,8 +453,13 @@ final class AppController: NSObject, NSApplicationDelegate {
                 }
 
                 model.add(Dictation(date: Date(), text: text, duration: duration))
-                overlay.show(.hidden)
-                TextInserter.insert(text)
+                // Like a person would, paste only into a text box; otherwise keep it for the paste shortcut.
+                if TextInserter.focusedTarget() == .notEditable {
+                    showUnplaced(text)
+                } else {
+                    overlay.show(.hidden)
+                    TextInserter.insert(text)
+                }
             } catch {
                 flashError(Self.message(for: error))
                 NSLog("Lidiflow: \(error.localizedDescription)")
@@ -359,6 +513,21 @@ final class AppController: NSObject, NSApplicationDelegate {
         return TextProcessor.apply(text, replacements: model.replacements, snippets: model.snippets)
     }
 
+    /// The card stays 12 s, longer while the mouse is on it, so the text can be read and copied.
+    private func showUnplaced(_ text: String) {
+        overlay.state.pasteKeys = model.keys(for: .pasteLast)
+        overlay.show(.unplaced(text))
+        scheduleUnplacedDismiss(after: 12, text: text)
+    }
+
+    private func scheduleUnplacedDismiss(after seconds: TimeInterval, text: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+            guard let self, self.overlay.state.phase == .unplaced(text) else { return }
+            if self.overlay.state.hovering { return self.scheduleUnplacedDismiss(after: 3, text: text) }
+            self.overlay.show(.hidden)
+        }
+    }
+
     private func flashError(_ message: String) {
         overlay.show(.error(message))
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
@@ -406,6 +575,10 @@ final class AppController: NSObject, NSApplicationDelegate {
         let copyLast = NSMenuItem(title: "Copiar última transcrição", action: #selector(copyLast), keyEquivalent: "c")
         copyLast.target = self
         menu.addItem(copyLast)
+
+        meetingItem.action = #selector(toggleMeeting)
+        meetingItem.target = self
+        menu.addItem(meetingItem)
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Sair do Lidiflow", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))

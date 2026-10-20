@@ -30,8 +30,12 @@ public partial class SettingsPage : UserControl
     {
         loading = true;
         Select(ThemeBox, model.Theme.ToString());
+        LoadMicrophones();
         Select(LanguageBox, model.Language);
         SoundsBox.IsChecked = model.SoundsEnabled;
+        DictationBarBox.IsChecked = model.ShowsDictationBar;
+        DetectMeetingsBox.IsChecked = model.DetectMeetings;
+        AutoRecordBox.IsChecked = model.AutoRecordMeetings;
         PolishBox.IsChecked = model.PolishEnabled;
         StartupBox.IsChecked = model.LaunchAtStartup;
         loading = false;
@@ -51,6 +55,33 @@ public partial class SettingsPage : UserControl
     private void Language_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (!loading && TagOf(LanguageBox) is string language) model.Language = language;
+    }
+
+    private void LoadMicrophones()
+    {
+        MicrophoneBox.Items.Clear();
+        MicrophoneBox.Items.Add(new ComboBoxItem { Content = "Automático", Tag = Microphones.Automatic });
+        var devices = Microphones.Inputs();
+        foreach (var device in devices) MicrophoneBox.Items.Add(new ComboBoxItem { Content = device.Name, Tag = device.Id });
+        // A chosen microphone that is disconnected stays selectable, so the setting is not lost.
+        if (model.Microphone != Microphones.Automatic && devices.All(d => d.Id != model.Microphone))
+            MicrophoneBox.Items.Add(new ComboBoxItem { Content = "Microfone desconectado", Tag = model.Microphone });
+        Select(MicrophoneBox, model.Microphone);
+    }
+
+    private void Microphone_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!loading && TagOf(MicrophoneBox) is string microphone) model.Microphone = microphone;
+    }
+
+    private void DictationBar_Click(object sender, RoutedEventArgs e) => model.ShowsDictationBar = DictationBarBox.IsChecked == true;
+
+    private void DetectMeetings_Click(object sender, RoutedEventArgs e) => model.DetectMeetings = DetectMeetingsBox.IsChecked == true;
+
+    private void AutoRecord_Click(object sender, RoutedEventArgs e)
+    {
+        model.AutoRecordMeetings = AutoRecordBox.IsChecked == true;
+        model.AutoRecordAsked = true;
     }
 
     private void Sounds_Click(object sender, RoutedEventArgs e) => model.SoundsEnabled = SoundsBox.IsChecked == true;

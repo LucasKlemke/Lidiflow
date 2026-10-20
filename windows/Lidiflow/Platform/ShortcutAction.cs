@@ -27,7 +27,7 @@ public static class ShortcutActions
 
     public static string Detail(this ShortcutAction action) => action switch
     {
-        ShortcutAction.Dictate => "Segure para falar, solte para colar",
+        ShortcutAction.Dictate => "Segure para falar, solte para colar; dois toques: mãos livres",
         ShortcutAction.HandsFree => "Aperte para começar e de novo para parar",
         ShortcutAction.Command => "Segure com um texto selecionado e diga o que mudar",
         ShortcutAction.PasteLast or ShortcutAction.CopyLast => "Funciona em qualquer app",

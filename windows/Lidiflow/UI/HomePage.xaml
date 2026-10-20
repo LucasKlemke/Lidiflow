@@ -1,6 +1,85 @@
 <UserControl x:Class="Lidiflow.UI.HomePage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- A small dark label above a row button, pointing at it. A tooltip is its own window: it draws over the
+             neighbor rows and never takes the click. -->
+        <Style x:Key="Balloon" TargetType="ToolTip">
+            <Setter Property="HasDropShadow" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <StackPanel x:Name="Root" Margin="10,4,10,10" Opacity="0" IsHitTestVisible="False">
+                            <StackPanel.Effect>
+                                <DropShadowEffect Color="Black" Opacity="0.18" BlurRadius="12" ShadowDepth="2" Direction="270" />
+                            </StackPanel.Effect>
+                            <Border Background="#141414" CornerRadius="4" Height="24" Padding="8,0">
+                                <TextBlock Text="{TemplateBinding Content}" FontSize="11" FontWeight="Medium"
+                                           Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                            </Border>
+                            <Path Data="M0,0 L10,0 L5,5 Z" Fill="#141414" HorizontalAlignment="Center" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="ToolTip.Opened">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="Opacity"
+                                                         From="0" To="1" Duration="0:0:0.15" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- A row's icon button: a framed square that lights up under the pointer. -->
+        <Style x:Key="RowAction" TargetType="Button">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <!-- The balloon sits centered 34 px above the button, after a short wait so sweeping the row does not
+                 flash it, and goes as soon as the pointer leaves. -->
+            <Setter Property="ToolTipService.Placement" Value="Center" />
+            <Setter Property="ToolTipService.VerticalOffset" Value="-34" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="250" />
+            <Setter Property="ToolTipService.BetweenShowDelay" Value="0" />
+            <Setter Property="ToolTipService.ShowDuration" Value="60000" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Border Background="{TemplateBinding Background}" CornerRadius="4" />
+                            <Border x:Name="Light" Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Visibility="Collapsed" />
+                            <Border BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4" />
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Light" Property="Visibility" Value="Visible" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- Delete lights up in red. -->
+        <Style x:Key="RowActionDestructive" TargetType="Button" BasedOn="{StaticResource RowAction}">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
     <StackPanel>
         <TextBlock Text="Início" Style="{StaticResource PageTitle}" />
         <TextBlock Style="{StaticResource Subtle}"
@@ -47,18 +126,37 @@
         <ItemsControl x:Name="HistoryList">
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Border Style="{StaticResource Card}">
-                        <DockPanel>
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-                                <Button Content="Copiar" Click="Copy_Click" Margin="8,0,0,0" />
-                                <Button Content="Apagar" Click="Delete_Click" Margin="8,0,0,0" />
-                            </StackPanel>
-                            <StackPanel>
-                                <TextBlock Text="{Binding DateLabel}" Style="{StaticResource Subtle}" FontSize="12" />
-                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
-                            </StackPanel>
-                        </DockPanel>
+                    <Border x:Name="Row" Style="{StaticResource Card}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                        <Grid>
+                            <!-- Hover: the row lights up and gets a accent mark on its edge, like a selection. -->
+                            <Border x:Name="Light" Background="{DynamicResource SubtleFillColorSecondaryBrush}" Margin="-15,-11" CornerRadius="7" Visibility="Collapsed" />
+                            <Border x:Name="Mark" Background="{DynamicResource AccentFillColorDefaultBrush}" Width="2" Margin="-15,-11,0,-11"
+                                    HorizontalAlignment="Left" Visibility="Collapsed" />
+                            <DockPanel>
+                                <StackPanel x:Name="Actions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
+                                            Margin="16,0,0,0" Opacity="0">
+                                    <Button Style="{StaticResource RowAction}" Content="&#xE8C8;" Click="Copy_Click">
+                                        <Button.ToolTip><ToolTip Style="{StaticResource Balloon}" Content="Copiar" /></Button.ToolTip>
+                                    </Button>
+                                    <Button Style="{StaticResource RowActionDestructive}" Content="&#xE74D;"
+                                            Click="Delete_Click" Margin="4,0,0,0">
+                                        <Button.ToolTip><ToolTip Style="{StaticResource Balloon}" Content="Apagar" /></Button.ToolTip>
+                                    </Button>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding DateLabel}" Style="{StaticResource Subtle}" FontSize="12" />
+                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Grid>
                     </Border>
+                    <DataTemplate.Triggers>
+                        <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Light" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="Mark" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="Actions" Property="Opacity" Value="1" />
+                        </Trigger>
+                    </DataTemplate.Triggers>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>

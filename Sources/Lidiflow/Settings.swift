@@ -65,6 +65,36 @@ enum Settings {
         set { defaults.set(newValue, forKey: "onboardingDone") }
     }
 
+    /// The dictation bar at the bottom of the screen while idle; it always appears while dictating.
+    static var showsDictationBar: Bool {
+        get { defaults.object(forKey: "showsDictationBar") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "showsDictationBar") }
+    }
+
+    /// Record a detected call straight away and stop when it ends, instead of offering (meetings screen v3).
+    static var autoRecordMeetings: Bool {
+        get { defaults.bool(forKey: "autoRecordMeetings") }
+        set { defaults.set(newValue, forKey: "autoRecordMeetings") }
+    }
+
+    /// The "Gravar sozinho?" banner was answered.
+    static var autoRecordAsked: Bool {
+        get { defaults.bool(forKey: "autoRecordAsked") }
+        set { defaults.set(newValue, forKey: "autoRecordAsked") }
+    }
+
+    /// Offer to record when a call starts, and to stop when it ends (phase 2 of meetings).
+    static var detectMeetings: Bool {
+        get { defaults.object(forKey: "detectMeetings") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "detectMeetings") }
+    }
+
+    /// Where the dictation bar docks; changed by dragging it or from its menu.
+    static var dictationBarEdge: DockEdge {
+        get { DockEdge(rawValue: defaults.string(forKey: "dictationBarEdge") ?? "") ?? .bottom }
+        set { defaults.set(newValue.rawValue, forKey: "dictationBarEdge") }
+    }
+
     static var soundsEnabled: Bool {
         get { defaults.object(forKey: "soundsEnabled") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "soundsEnabled") }

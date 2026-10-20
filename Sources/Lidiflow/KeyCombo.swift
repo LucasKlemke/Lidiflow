@@ -3,7 +3,7 @@ import CoreGraphics
 
 /// A global shortcut. One of three kinds:
 /// - a key plus optional modifiers (⌃⌥T, F6, Fn + Espaço)
-/// - modifiers alone, held or tapped (Fn, ⇧ dir., ⌃⌥)
+/// - modifiers alone, held or tapped (Fn, Shift dir., ⌃⌥)
 /// - an extra mouse button plus optional modifiers (botão do meio, botões laterais)
 struct KeyCombo: Codable, Hashable {
     let keyCode: Int64?
@@ -38,7 +38,7 @@ struct KeyCombo: Codable, Hashable {
         55: (.maskCommand, "⌘ esq."), 54: (.maskCommand, "⌘ dir."),
         58: (.maskAlternate, "⌥ esq."), 61: (.maskAlternate, "⌥ dir."),
         59: (.maskControl, "⌃ esq."), 62: (.maskControl, "⌃ dir."),
-        56: (.maskShift, "⇧ esq."), 60: (.maskShift, "⇧ dir."),
+        56: (.maskShift, "Shift esq."), 60: (.maskShift, "Shift dir."),
         63: (.maskSecondaryFn, "Fn"), 179: (.maskSecondaryFn, "Fn"),
     ]
 
@@ -94,7 +94,7 @@ struct KeyCombo: Codable, Hashable {
         if flags.contains(.maskSecondaryFn) { keys.append("Fn") }
         if flags.contains(.maskControl) { keys.append("⌃") }
         if flags.contains(.maskAlternate) { keys.append("⌥") }
-        if flags.contains(.maskShift) { keys.append("⇧") }
+        if flags.contains(.maskShift) { keys.append("Shift") }
         if flags.contains(.maskCommand) { keys.append("⌘") }
         if let mouseButton { keys.append(Self.mouseLabel(mouseButton)) }
         if keyCode != nil { keys.append(keyLabel) }

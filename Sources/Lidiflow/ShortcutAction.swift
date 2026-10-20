@@ -22,7 +22,7 @@ enum ShortcutAction: String, CaseIterable, Codable, Identifiable {
 
     var detail: String {
         switch self {
-        case .dictate: return "Segure para falar, solte para colar"
+        case .dictate: return "Segure para falar, solte para colar; dois toques: mãos livres"
         case .handsFree: return "Aperte para começar e de novo para parar"
         case .command: return "Segure com um texto selecionado e diga o que mudar"
         case .pasteLast, .copyLast: return "Funciona em qualquer app"

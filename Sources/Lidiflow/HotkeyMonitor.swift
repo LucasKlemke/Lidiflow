@@ -26,6 +26,9 @@ final class HotkeyMonitor {
     /// Key codes for 1…9, used by the positional transform shortcuts.
     static let digits: [Int64] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
     private static let armingDelay: TimeInterval = 0.15
+    /// A press of the dictation shortcut shorter than this is a tap; two taps this close start hands-free.
+    private static let tapLength: TimeInterval = 0.3
+    private static let doubleTapGap: TimeInterval = 0.4
 
     var shortcuts: [ShortcutAction: [KeyCombo]] = ShortcutAction.defaults
     var onAction: (Action) -> Void = { _ in }
@@ -44,6 +47,9 @@ final class HotkeyMonitor {
     /// A hold started by a key or mouse button, released by its key-up / button-up.
     private var inputHold: (action: ShortcutAction, keyCode: Int64?, mouseButton: Int64?)?
     private var swallowedKeyUps: Set<Int64> = []
+    /// When the dictation shortcut went down, and when the last quick tap of it ended.
+    private var dictatePressedAt: Date?
+    private var lastDictateTap: Date?
     private var swallowedMouseUps: Set<Int64> = []
 
     private var holdDown: Bool {
@@ -102,6 +108,7 @@ final class HotkeyMonitor {
             let code = event.getIntegerValueField(.keyboardEventKeycode)
             if let held = inputHold, held.keyCode == code {
                 inputHold = nil
+                if held.action == .dictate { dictateReleased() }
                 onAction(.holdEnd)
             }
             return swallowedKeyUps.remove(code) == nil
@@ -111,6 +118,7 @@ final class HotkeyMonitor {
             let button = event.getIntegerValueField(.mouseEventButtonNumber)
             if let held = inputHold, held.mouseButton == button {
                 inputHold = nil
+                if held.action == .dictate { dictateReleased() }
                 onAction(.holdEnd)
             }
             return swallowedMouseUps.remove(button) == nil
@@ -179,6 +187,12 @@ final class HotkeyMonitor {
             onAction(.stop)
             return
         }
+        if action == .dictate, secondTap() {
+            hold = .consumed(combo.flags)
+            onAction(.handsFree)
+            return
+        }
+        if action == .dictate { dictatePressedAt = Date() }
         hold = .armed(action, combo)
         let work = DispatchWorkItem { [weak self] in
             guard let self, case .armed(let action, let combo) = self.hold else { return }
@@ -190,6 +204,8 @@ final class HotkeyMonitor {
     }
 
     private func releaseModifierHold() {
+        if case .armed(.dictate, _) = hold { dictateReleased() }
+        if case .active(.dictate, _) = hold { dictateReleased() }
         if case .active = hold { onAction(.holdEnd) }
         arming?.cancel()
         hold = .none
@@ -260,7 +276,10 @@ final class HotkeyMonitor {
             consumeModifierHold(discarding: true)
             if action == .dictate, isHandsFree() {
                 onAction(.stop)
+            } else if action == .dictate, secondTap() {
+                onAction(.handsFree)
             } else {
+                if action == .dictate { dictatePressedAt = Date() }
                 inputHold = (action, keyCode, mouseButton)
                 onAction(.holdStart(action))
             }
@@ -269,6 +288,22 @@ final class HotkeyMonitor {
             fire(action)
         }
         return true
+    }
+
+    // MARK: - Double tap
+
+    /// Remembers a quick tap of the dictation shortcut, the first half of a double tap.
+    private func dictateReleased() {
+        guard let pressed = dictatePressedAt else { return }
+        dictatePressedAt = nil
+        lastDictateTap = Date().timeIntervalSince(pressed) < Self.tapLength ? Date() : nil
+    }
+
+    /// Whether this press is the second of a double tap; consumes the first so a third tap starts over.
+    private func secondTap() -> Bool {
+        defer { lastDictateTap = nil }
+        guard let last = lastDictateTap else { return false }
+        return Date().timeIntervalSince(last) < Self.doubleTapGap
     }
 
     private func fire(_ action: ShortcutAction) {

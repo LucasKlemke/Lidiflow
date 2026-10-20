@@ -1,9 +1,11 @@
+import ServiceManagement
 import SwiftUI
 
 // MARK: - Settings
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    let meetings: MeetingCenter
 
     var body: some View {
         Page {
@@ -21,6 +23,16 @@ struct SettingsView: View {
             }
 
             SectionCard(title: "Ditado") {
+                SettingRow(title: "Detectar reuniões", detail: "Oferece gravar quando uma chamada começa no Zoom, Teams, Meet e outros") {
+                    Toggle("", isOn: $model.detectMeetings).labelsHidden().toggleStyle(.switch)
+                }
+                SettingRow(title: "Gravar reuniões sozinho", detail: "Começa a gravar quando a chamada começa e para quando ela acaba") {
+                    Toggle("", isOn: $model.autoRecordMeetings).labelsHidden().toggleStyle(.switch)
+                        .disabled(!model.detectMeetings)
+                }
+                SettingRow(title: "Barra de ditado", detail: "Fica no pé da tela; passe o mouse para ditar com um clique") {
+                    Toggle("", isOn: $model.showsDictationBar).labelsHidden().toggleStyle(.switch)
+                }
                 SettingRow(title: "Idioma") {
                     Picker("", selection: $model.language) {
                         Text("Português").tag("pt")
@@ -31,15 +43,20 @@ struct SettingsView: View {
                     .labelsHidden()
                     .frame(width: 220)
                 }
-                SettingRow(title: "Microfone", detail: "Fale algo: as barras mostram se ele está ouvindo") {
+                SettingRow(title: "Microfone", detail: "Fale algo: as barras mostram se ele está ouvindo. No padrão, com fone Bluetooth o Lidiflow usa o microfone do Mac, e a música não pausa") {
                     MicrophoneTest(selection: model.microphone)
                     MicrophonePicker(selection: $model.microphone, list: model.microphones)
                 }
                 SettingRow(title: "Sons ao iniciar e parar") {
                     Toggle("", isOn: $model.soundsEnabled).labelsHidden().toggleStyle(.switch)
                 }
-                SettingRow(title: "Ajustar texto com IA", detail: "Remove vícios de fala e corrige a pontuação", divider: false) {
+                SettingRow(title: "Ajustar texto com IA", detail: "Remove vícios de fala e corrige a pontuação") {
                     Toggle("", isOn: $model.polishEnabled).labelsHidden().toggleStyle(.switch)
+                }
+                SettingRow(title: "Abrir o Lidiflow ao entrar no Mac", divider: false) {
+                    Toggle("", isOn: $model.launchAtLogin).labelsHidden().toggleStyle(.switch)
+                        // It can also be turned off in System Settings, so read it again here.
+                        .onAppear { model.launchAtLogin = SMAppService.mainApp.status == .enabled }
                 }
             }
 
@@ -94,7 +111,7 @@ struct SettingsView: View {
     }
 }
 
-/// "Padrão do sistema" follows whatever macOS uses; a chosen microphone that's unplugged stays listed,
+/// "Padrão do sistema" follows whatever macOS uses, except a Bluetooth headset (see `MicrophoneList.recordingDevice`); a chosen microphone that's unplugged stays listed,
 /// marked as disconnected, and the recorder falls back to the default until it's back.
 struct MicrophonePicker: View {
     @Binding var selection: String?
@@ -152,7 +169,7 @@ struct MicrophoneTest: View {
 
 private extension SettingsView {
     var shortcutsFooter: String {
-        var text = "Até 2 atalhos por ação: uma tecla F, uma combinação (⌃⌥D), um modificador sozinho (⇧ direito, Fn) ou um botão extra do mouse (meio ou laterais). Transforms têm atalhos próprios na aba Transforms."
+        var text = "Até 2 atalhos por ação: uma tecla F, uma combinação (⌃⌥D), um modificador sozinho (Shift direito, Fn) ou um botão extra do mouse (meio ou laterais). Transforms têm atalhos próprios na aba Transforms."
         let usesFn = model.shortcuts.values.joined().contains { $0.flags.contains(.maskSecondaryFn) }
         if usesFn {
             text += " Com Fn, deixe \u{201C}Ao pressionar 🌐\u{201D} como \u{201C}Não fazer nada\u{201D} em Ajustes do Sistema → Teclado."

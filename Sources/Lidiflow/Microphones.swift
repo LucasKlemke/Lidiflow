@@ -38,6 +38,19 @@ final class MicrophoneList: ObservableObject {
         inputDevices().first { string($0, kAudioDevicePropertyDeviceUID) == uid }
     }
 
+    /// UID of the input to record from: the chosen microphone while it's connected, otherwise the system default.
+    /// A Bluetooth default gives way to the Mac's built-in microphone, because recording from a headset switches it
+    /// from its music profile to its call profile: the sound drops to phone quality and most players pause.
+    static func recordingDevice(for choice: String?) -> String? {
+        let inputs = inputDevices()
+        if let choice, inputs.contains(where: { string($0, kAudioDevicePropertyDeviceUID) == choice }) { return choice }
+        guard let system = defaultInputDevice() else { return nil }
+        if isBluetooth(system), let builtIn = inputs.first(where: { transport($0) == kAudioDeviceTransportTypeBuiltIn }) {
+            return string(builtIn, kAudioDevicePropertyDeviceUID)
+        }
+        return string(system, kAudioDevicePropertyDeviceUID)
+    }
+
     // MARK: - Core Audio
 
     private static func inputDevices() -> [AudioDeviceID] {
@@ -62,6 +75,18 @@ final class MicrophoneList: ObservableObject {
         var address = AudioObjectPropertyAddress(selector: kAudioDevicePropertyStreams, scope: kAudioObjectPropertyScopeInput)
         var size: UInt32 = 0
         return AudioObjectGetPropertyDataSize(device, &address, 0, nil, &size) == noErr && size > 0
+    }
+
+    private static func isBluetooth(_ device: AudioDeviceID) -> Bool {
+        let type = transport(device)
+        return type == kAudioDeviceTransportTypeBluetooth || type == kAudioDeviceTransportTypeBluetoothLE
+    }
+
+    private static func transport(_ device: AudioDeviceID) -> UInt32 {
+        var address = AudioObjectPropertyAddress(selector: kAudioDevicePropertyTransportType)
+        var value: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        return AudioObjectGetPropertyData(device, &address, 0, nil, &size, &value) == noErr ? value : 0
     }
 
     private static func string(_ device: AudioDeviceID, _ selector: AudioObjectPropertySelector) -> String? {

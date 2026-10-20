@@ -39,7 +39,7 @@ A diferença é que ele é **gratuito** e você escolhe onde a IA roda:
 ## Recursos
 
 - **Segure e fale:** segure `Fn` (ou o atalho que você quiser), fale e solte. O texto é colado no app em foco, e o seu clipboard é preservado.
-- **Mãos livres:** `Fn + Espaço` começa a gravar sem precisar segurar; aperte de novo para parar.
+- **Mãos livres:** dois toques no `Fn` (ou `Fn + Espaço`) começam a gravar sem precisar segurar; um toque no `Fn` para e cola.
 - **Modo comando:** selecione um texto, segure `Fn + ⌃` e diga o que mudar ("traduz pra inglês", "deixa mais formal").
 - **Transforms:** reescritas com um atalho (mais formal, resumir, tópicos, email…). Crie os seus, com sugestões geradas pela IA, ou aplique um transform automaticamente em tudo o que você dita.
 - **Atalhos livres:** até 2 atalhos por ação. Pode ser uma tecla F, uma combinação, um modificador sozinho (⇧ direito, Fn) ou um botão extra do mouse.
@@ -49,6 +49,13 @@ A diferença é que ele é **gratuito** e você escolhe onde a IA roda:
 - **Instruções para a IA:** um texto seu que vai junto no ajuste, no modo comando e nos transforms.
 - **Microfone:** escolha qual usar, com uma onda ao vivo para ver se ele está te ouvindo.
 - **Histórico** de ditados, estatísticas, tema claro, escuro ou do sistema.
+- **Reuniões:** grava o seu microfone e o áudio do computador, transcreve separando **Você** de cada participante
+  (o separador de vozes local dá `Pessoa 1`, `Pessoa 2`…, e você ouve e dá nome) e resume em decisões, tarefas e
+  pontos em aberto. Percebe quando uma chamada começa (Zoom, Teams, Meet, Webex, FaceTime, Slack, Discord) e oferece
+  gravar, com a transcrição ao vivo na barra; responde perguntas sobre as reuniões; marca tarefas como feitas e as
+  copia, envia por e-mail ou cria Lembretes. Tudo neste computador; detalhes
+  em [`docs/reunioes.md`](docs/reunioes.md). No Mac, o áudio dos outros exige macOS 14.2+ e a permissão "Gravação de
+  Áudio do Sistema".
 
 ## Modelos
 
@@ -74,7 +81,7 @@ As chaves de API ficam guardadas no **Keychain do macOS**, nunca em arquivos.
 | Ação | Padrão |
 |---|---|
 | Ditar (segurar) | `Fn` |
-| Mãos livres | `Fn + Espaço` |
+| Mãos livres | Dois toques no `Fn`, ou `Fn + Espaço` (um toque no `Fn` para) |
 | Modo comando (segurar) | `Fn + ⌃` |
 | Transform 1…9 | `Fn + 1…9` (ou o atalho de cada transform) |
 | Colar / copiar a última transcrição | `⌃⌘V` / `⌃⌘C` |

@@ -22,6 +22,10 @@
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>O Lidiflow grava o áudio do computador durante uma reunião para transcrever o que os outros participantes dizem.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>O Lidiflow cria lembretes com as tarefas de uma reunião quando você pede.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>O Lidiflow usa o microfone para transcrever o que você dita.</string>
 </dict>
