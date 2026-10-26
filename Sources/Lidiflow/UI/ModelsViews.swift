@@ -341,6 +341,7 @@ private struct AIModelCard: View {
     @State private var fetched: [String] = []
     @State private var loading = false
     @State private var error: String?
+    @State private var showOllama = Settings.llmProvider == .ollama
 
     private var provider: LLMProvider { model.llmProvider }
     private static let cloudProviders = LLMProvider.allCases.filter(\.needsKey)
@@ -357,11 +358,11 @@ private struct AIModelCard: View {
             title: "IA",
             subtitle: "Limpa o texto, responde ao modo comando e faz os transforms",
             local: Binding(get: { model.aiRunsLocally }, set: { model.aiRunsLocally = $0 }),
-            localDetail: "Ollama · privado e grátis",
+            localDetail: AppleIntelligence.isSupported ? "Apple Intelligence ou Ollama · privado e grátis" : "Ollama · privado e grátis",
             cloudDetail: "OpenAI, Claude, Groq, Gemini ou Grok"
         ) {
-            if provider == .ollama {
-                ollamaRows
+            if provider.isLocal {
+                localRows
             } else {
                 cloudRows
             }
@@ -370,6 +371,9 @@ private struct AIModelCard: View {
             fetched = []
             error = nil
             if provider == .ollama {
+                // Starts it on its own when installed, instead of asking for Iniciar every time.
+                await ollama.ensureRunning()
+            } else if provider == .apple {
                 await ollama.refresh()
             } else if model.savedKeys.contains(provider) {
                 await loadModels()
@@ -380,15 +384,31 @@ private struct AIModelCard: View {
         }
     }
 
+    @ViewBuilder private var localRows: some View {
+        if AppleIntelligence.isSupported {
+            AppleIntelligenceRow(model: model)
+            SettingRow(title: "Outros modelos (Ollama)",
+                       detail: "Qwen, Llama, Mistral, Gemma… baixados e rodando no Ollama",
+                       divider: showOllama) {
+                Button(showOllama ? "Ocultar" : "Mostrar") { showOllama.toggle() }
+                    .buttonStyle(SecondaryButtonStyle())
+            }
+            if showOllama { ollamaRows }
+        } else {
+            ollamaRows
+        }
+    }
+
     @ViewBuilder private var ollamaRows: some View {
         if ollama.isRunning || ollama.isInstalledOnMac {
             SettingRow(title: ollama.isRunning ? "Ollama rodando" : "Ollama parado",
-                       detail: ollama.isRunning ? "Baixe um modelo abaixo e clique em Usar" : "Inicie para baixar e usar modelos") {
+                       detail: ollama.isRunning ? "Baixe um modelo abaixo e clique em Usar"
+                           : "Inicia sozinho quando um modelo do Ollama está em uso") {
                 if ollama.isRunning {
                     Circle().fill(Color.green).frame(width: 8, height: 8)
                 } else {
                     Button("Iniciar") { Task { await ollama.start() } }
-                        .buttonStyle(PrimaryButtonStyle())
+                        .buttonStyle(SecondaryButtonStyle())
                 }
             }
         } else {
@@ -462,12 +482,7 @@ private struct LocalModelRow: View {
                     HStack(spacing: 6) {
                         Text(item.name).foregroundStyle(Theme.text)
                         if item.id == ModelManager.recommended.id {
-                            Text("Recomendado")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(Theme.blue)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(Theme.blueTint))
+                            RecommendedBadge()
                         }
                     }
                     Text("\(item.detail) · \(item.size)").font(.system(size: 12)).foregroundStyle(Theme.secondary)
@@ -563,7 +578,7 @@ private struct OllamaModelRow: View {
     @ObservedObject var ollama: OllamaManager
 
     private var installed: Bool { ollama.isInstalled(item.id) }
-    private var selected: Bool { model.llmModel == item.id }
+    private var selected: Bool { model.llmProvider == .ollama && model.llmModel == item.id }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -575,12 +590,7 @@ private struct OllamaModelRow: View {
                     HStack(spacing: 6) {
                         Text(item.name).foregroundStyle(Theme.text)
                         if item.id == ModelManager.recommended.id {
-                            Text("Recomendado")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(Theme.blue)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(Theme.blueTint))
+                            RecommendedBadge()
                         }
                     }
                     Text("\(item.detail) · \(item.size)").font(.system(size: 12)).foregroundStyle(Theme.secondary)
@@ -603,7 +613,7 @@ private struct OllamaModelRow: View {
                     if selected {
                         InUseBadge()
                     } else {
-                        Button("Usar") { model.llmModel = item.id }.buttonStyle(SecondaryButtonStyle())
+                        Button("Usar") { model.useOllama(item.id) }.buttonStyle(SecondaryButtonStyle())
                     }
                     UninstallButton(name: item.name, size: item.size, inUse: selected) {
                         Task { await model.uninstallOllama(item.id) }
@@ -621,6 +631,54 @@ private struct OllamaModelRow: View {
     }
 }
 
+/// Apple's model built into macOS: nothing to download or start.
+private struct AppleIntelligenceRow: View {
+    @ObservedObject var model: AppModel
+
+    private var selected: Bool { model.llmProvider == .apple }
+
+    var body: some View {
+        let reason = AppleIntelligence.unavailableReason
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 15))
+                    .foregroundStyle(selected ? Theme.blue : Theme.secondary.opacity(0.5))
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text("Apple Intelligence").foregroundStyle(Theme.text)
+                        RecommendedBadge()
+                    }
+                    Text(reason ?? "Modelo da Apple, já vem no macOS · sem download, sem Ollama")
+                        .font(.system(size: 12))
+                        .foregroundStyle(reason == nil ? Theme.secondary : Color.orange)
+                }
+                Spacer()
+                if let rating = ModelCatalog.rating(for: AppleIntelligence.modelID) {
+                    ScoreBars(accuracy: rating.intelligence, speed: rating.speed, quality: "inteligência")
+                        .padding(.trailing, 8)
+                }
+                if selected {
+                    InUseBadge()
+                } else {
+                    Button("Usar") { model.llmProvider = .apple }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .disabled(!AppleIntelligence.isEnabled)
+                }
+                if reason != nil {
+                    Button("Abrir Ajustes") {
+                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Siri-Settings.extension")!)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            Divider().overlay(Theme.border).padding(.leading, 43)
+        }
+    }
+}
+
 /// A model already in Ollama that isn't in the catalog (e.g. pulled from the Terminal).
 private struct InstalledOllamaRow: View {
     let name: String
@@ -629,11 +687,11 @@ private struct InstalledOllamaRow: View {
 
     var body: some View {
         SettingRow(title: name, detail: "Já instalado no Ollama") {
-            let inUse = model.llmModel == name || model.llmModel + ":latest" == name
+            let inUse = model.llmProvider == .ollama && (model.llmModel == name || model.llmModel + ":latest" == name)
             if inUse {
                 InUseBadge()
             } else {
-                Button("Usar") { model.llmModel = name }.buttonStyle(SecondaryButtonStyle())
+                Button("Usar") { model.useOllama(name) }.buttonStyle(SecondaryButtonStyle())
             }
             UninstallButton(name: name, size: nil, inUse: inUse) {
                 Task { await model.uninstallOllama(name) }
@@ -667,6 +725,17 @@ private struct UninstallButton: View {
         if inUse { parts.append("Ele está em uso: o Lidiflow passa para outro modelo baixado, se houver.") }
         parts.append("Dá para baixar de novo depois.")
         return parts.joined(separator: " ")
+    }
+}
+
+private struct RecommendedBadge: View {
+    var body: some View {
+        Text("Recomendado")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(Theme.blue)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(Theme.blueTint))
     }
 }
 

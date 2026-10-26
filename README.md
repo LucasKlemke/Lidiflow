@@ -31,7 +31,7 @@ O Lidiflow é um app de ditado parecido com o [Wispr Flow](https://wisprflow.ai)
 
 A diferença é que ele é **gratuito** e você escolhe onde a IA roda:
 
-- **No seu Mac:** a transcrição roda no próprio app (modelo da Apple, Parakeet, Whisper e outros), e a IA no [Ollama](https://ollama.com), que o app instala para você. Privado, sem custo e sem Terminal.
+- **No seu Mac:** a transcrição roda no próprio app (modelo da Apple, Parakeet, Whisper e outros), e a IA na Apple Intelligence do macOS ou no [Ollama](https://ollama.com), que o app instala para você. Privado, sem custo e sem Terminal.
 - **Na sua conta:** use a sua chave de API da OpenAI, Anthropic (Claude), Groq, Google Gemini ou xAI (Grok).
 
 > O Lidiflow é um projeto independente, escrito do zero em Swift. Não usa código nem recursos do Wispr Flow e não tem relação com a Wispr.
@@ -68,7 +68,7 @@ Na aba **Modelos**, cada parte responde a uma pergunta: *No meu Mac* ou *Minha c
 | | No meu Mac (grátis) | Minha conta (chave de API) |
 |---|---|---|
 | **Transcrição** | modelo da Apple (macOS 26+, baixado e gerenciado pelo próprio macOS), Parakeet TDT v3, Nemotron Streaming 3.5, Qwen3-ASR, Cohere Transcribe e Whisper (Base a Large v3). Todos baixam e rodam dentro do app | OpenAI (`gpt-4o-transcribe`…) ou Groq (`whisper-large-v3-turbo`…) |
-| **IA** (ajuste, comando, transforms) | Ollama (o app instala): Qwen 2.5, Llama 3.x, Mistral, Gemma 2, Phi-3… | OpenAI, Anthropic, Groq, Gemini ou xAI |
+| **IA** (ajuste, comando, transforms) | Apple Intelligence (macOS 26+, já vem no Mac) ou Ollama (o app instala e inicia sozinho): Qwen 2.5, Llama 3.x, Mistral, Gemma 2, Phi-3… | OpenAI, Anthropic, Groq, Gemini ou xAI |
 
 As chaves de API ficam guardadas no **Keychain do macOS**, nunca em arquivos.
 
@@ -121,7 +121,7 @@ Requisitos: macOS 14 ou superior, Intel ou Apple Silicon. Não precisa instalar 
 <details>
 <summary><b>E a IA local?</b></summary>
 
-O ajuste de texto, o modo comando e os transforms usam uma IA. Para rodá-la no seu Mac, vá em **Modelos → IA → No meu Mac** e clique em **Instalar**: o Lidiflow baixa o [Ollama](https://ollama.com) oficial sozinho. Com uma chave de API (OpenAI, Anthropic, Groq, Gemini ou xAI), não precisa.
+O ajuste de texto, o modo comando e os transforms usam uma IA. Com a Apple Intelligence ligada (macOS 26+), o Lidiflow usa o modelo da Apple, sem instalar nada. Sem ela, vá em **Modelos → IA → No meu Mac** e clique em **Instalar**: o Lidiflow baixa o [Ollama](https://ollama.com) oficial e o inicia sozinho sempre que abrir. Com uma chave de API (OpenAI, Anthropic, Groq, Gemini ou xAI), não precisa.
 
 </details>
 
@@ -156,7 +156,7 @@ tecla segurada ─▶ AVAudioEngine (16 kHz) ─▶ modelo local (Apple ou trans
 
 - App nativo em **Swift + SwiftUI**, sem Electron. Os atalhos usam um `CGEventTap`, e o texto é inserido via clipboard + `⌘V`, com o clipboard restaurado logo depois.
 - A transcrição local usa o SpeechAnalyzer da Apple (macOS 26+) ou o [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) dentro do app (modelos GGUF como Parakeet, Nemotron e Whisper, na GPU via Metal), sempre com o modelo carregado para responder rápido.
-- A IA local roda no Ollama: o do Homebrew ou do app oficial, se houver, ou o que o Lidiflow baixa para `~/Library/Application Support/Lidiflow/ollama`.
+- A IA local roda no modelo da Apple (Foundation Models, macOS 26+) ou no Ollama: o do Homebrew ou do app oficial, se houver, ou o que o Lidiflow baixa para `~/Library/Application Support/Lidiflow/ollama`, iniciado pelo app quando necessário.
 - O histórico, o dicionário e os transforms ficam em `~/Library/Application Support/Lidiflow`.
 
 ## Desenvolvimento

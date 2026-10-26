@@ -173,6 +173,37 @@ enum Settings {
         set { defaults.set(newValue.rawValue, forKey: "llmProvider") }
     }
 
+    /// The local AI to return to when switching from a cloud account back to this Mac.
+    static var lastLocalProvider: LLMProvider {
+        get { LLMProvider(rawValue: defaults.string(forKey: "lastLocalProvider") ?? "") ?? defaultLocalProvider }
+        set { defaults.set(newValue.rawValue, forKey: "lastLocalProvider") }
+    }
+
+    /// Ollama for whoever already set it up; otherwise Apple's built-in model when it's on, since it
+    /// needs nothing installed or running.
+    private static var defaultLocalProvider: LLMProvider {
+        let ollamaInUse = OllamaManager.shared.isInstalledOnMac || !OllamaManager.isLocalHost
+        return !ollamaInUse && AppleIntelligence.isEnabled ? .apple : .ollama
+    }
+
+    /// Run once at launch, before anything reads `llmProvider`. Before Apple's model, the default was an
+    /// Ollama most people never installed, so the app kept asking for it: that choice moves to Apple's
+    /// model when it's on. An Apple choice on a Mac that can't run it (restored settings) goes back to Ollama.
+    static func migrateLLMProvider() {
+        let saved = defaults.string(forKey: "llmProvider").flatMap(LLMProvider.init(rawValue:))
+        switch saved {
+        case nil, .ollama?:
+            if saved == nil || !OllamaManager.shared.isInstalledOnMac && OllamaManager.isLocalHost {
+                llmProvider = defaultLocalProvider
+            }
+        case .apple? where !AppleIntelligence.isSupported:
+            llmProvider = .ollama
+        default:
+            break
+        }
+        if lastLocalProvider == .apple && !AppleIntelligence.isSupported { lastLocalProvider = .ollama }
+    }
+
     static var ollamaBaseURL: String {
         get { defaults.string(forKey: "polishBaseURL") ?? "http://localhost:11434/v1" }
         set { defaults.set(newValue, forKey: "polishBaseURL") }

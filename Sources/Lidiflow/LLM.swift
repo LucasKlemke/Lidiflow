@@ -1,14 +1,14 @@
 import Foundation
 
-/// LLM passes (polish, command mode, transforms) through an OpenAI-compatible chat endpoint:
-/// a local Ollama or the OpenAI API, depending on the user's choice.
+/// LLM passes (polish, command mode, transforms): Apple's on-device model, or an OpenAI-compatible chat
+/// endpoint (a local Ollama or a cloud API), depending on the user's choice.
 enum LLM {
     enum Failure: LocalizedError {
         case ollamaUnavailable, missingKey(LLMProvider), api(String)
 
         var errorDescription: String? {
             switch self {
-            case .ollamaUnavailable: return "IA indisponível — o Ollama está rodando?"
+            case .ollamaUnavailable: return "IA indisponível: o Ollama não respondeu"
             case .missingKey(let provider): return "Adicione sua chave da \(provider.title) em Modelos"
             case .api(let message): return "IA: \(message)"
             }
@@ -198,6 +198,7 @@ enum LLM {
             system += "\n\nInstruções do usuário, para seguir sempre (sem deixar de devolver só o texto pedido):\n" + instructions
         }
         let provider = Settings.llmProvider
+        if provider == .apple { return try await AppleIntelligence.complete(system: system, user: user) }
         let model = Settings.model(for: provider)
         let key = Keychain.key(for: provider)
         if provider.needsKey && key == nil { throw Failure.missingKey(provider) }
@@ -209,8 +210,13 @@ enum LLM {
         let data: Data
         do {
             (data, _) = try await URLSession.shared.data(for: request)
+        } catch let error as URLError where provider == .ollama
+                    && [.cannotConnectToHost, .networkConnectionLost].contains(error.code) {
+            // Ollama stopped (or never started this session): start it and try once more.
+            guard await OllamaManager.shared.ensureRunning() else { throw Failure.ollamaUnavailable }
+            do { (data, _) = try await URLSession.shared.data(for: request) } catch { throw Failure.ollamaUnavailable }
         } catch {
-            throw provider == .ollama ? Failure.ollamaUnavailable : Failure.api(error.localizedDescription)
+            throw Failure.api(error.localizedDescription)
         }
         let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         recordUsage(json, provider: provider, model: model)
@@ -248,7 +254,7 @@ enum LLM {
         case .gemini: pattern = #"^gemini-(2\.5|3)"#
         case .xai: pattern = #"^grok-3-mini"#
         case .groq: pattern = #"^openai/gpt-oss"#
-        case .anthropic, .ollama: return nil
+        case .anthropic, .ollama, .apple: return nil
         }
         return model.range(of: pattern, options: .regularExpression) != nil ? "low" : nil
     }
@@ -332,6 +338,8 @@ enum LLM {
 
         var request: URLRequest
         switch provider {
+        case .apple:
+            return [AppleIntelligence.modelID]
         case .ollama:
             return try await OllamaManager.installedModels()
         case .anthropic:

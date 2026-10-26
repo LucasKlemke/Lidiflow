@@ -2,12 +2,13 @@ import Foundation
 
 /// Where polish, command mode and transforms run.
 enum LLMProvider: String, CaseIterable, Identifiable, Codable {
-    case ollama, openAI, anthropic, groq, gemini, xai
+    case apple, ollama, openAI, anthropic, groq, gemini, xai
 
     var id: Self { self }
 
     var title: String {
         switch self {
+        case .apple: return "Apple Intelligence"
         case .ollama: return "Ollama (local)"
         case .openAI: return "OpenAI"
         case .anthropic: return "Anthropic (Claude)"
@@ -17,11 +18,15 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    var needsKey: Bool { self != .ollama }
+    var needsKey: Bool { !isLocal }
+
+    /// Runs on this Mac: Apple's built-in model or Ollama.
+    var isLocal: Bool { self == .apple || self == .ollama }
 
     /// Base URL of the OpenAI-compatible API. Anthropic uses its own Messages API.
     var baseURL: String {
         switch self {
+        case .apple: return ""
         case .ollama: return Settings.ollamaBaseURL
         case .openAI: return "https://api.openai.com/v1"
         case .anthropic: return "https://api.anthropic.com/v1"
@@ -34,6 +39,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     /// Starting suggestions; "Atualizar lista" fetches the provider's live catalog.
     var suggestedModels: [String] {
         switch self {
+        case .apple: return [AppleIntelligence.modelID]
         case .ollama: return OllamaManager.catalog.map(\.id)
         case .openAI: return ["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini"]
         case .anthropic: return ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
@@ -50,7 +56,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .groq: return "gsk_…"
         case .gemini: return "AIza…"
         case .xai: return "xai-…"
-        case .ollama: return ""
+        case .apple, .ollama: return ""
         }
     }
 
@@ -62,7 +68,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .groq: return URL(string: "https://console.groq.com/dashboard/usage")
         case .gemini: return URL(string: "https://aistudio.google.com/usage")
         case .xai: return URL(string: "https://console.x.ai")
-        case .ollama: return nil
+        case .apple, .ollama: return nil
         }
     }
 
@@ -73,7 +79,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .groq: return URL(string: "https://console.groq.com/keys")
         case .gemini: return URL(string: "https://aistudio.google.com/apikey")
         case .xai: return URL(string: "https://console.x.ai")
-        case .ollama: return nil
+        case .apple, .ollama: return nil
         }
     }
 }

@@ -9,6 +9,8 @@ struct OllamaModel: Identifiable, Hashable {
 
 /// Downloads and tracks open-source models in a local Ollama.
 final class OllamaManager: ObservableObject {
+    /// One per app: the model screen and the AI requests share the server it starts.
+    static let shared = OllamaManager()
     static let catalog = [
         OllamaModel(id: "qwen2.5:3b", name: "Qwen 2.5 3B", detail: "Rápido e bom em português", size: "1,9 GB"),
         OllamaModel(id: "llama3.2:3b", name: "Llama 3.2 3B", detail: "Leve, da Meta", size: "2,0 GB"),
@@ -29,11 +31,19 @@ final class OllamaManager: ObservableObject {
     private var pulls: [String: Task<Void, Never>] = [:]
     /// The `ollama serve` this app started, stopped when the app quits.
     private var server: Process?
+    private var starting: Task<Void, Never>?
+
+    private init() {}
 
     private static var host: URL {
         // The settings store the OpenAI-compatible URL (…/v1); the native API lives at the root.
         let base = Settings.ollamaBaseURL.replacingOccurrences(of: "/v1", with: "")
         return URL(string: base) ?? URL(string: "http://localhost:11434")!
+    }
+
+    /// Whether the settings point at an Ollama on this Mac, the only kind the app can start.
+    static var isLocalHost: Bool {
+        ["localhost", "127.0.0.1", "::1"].contains(host.host() ?? "")
     }
 
     /// Where the app puts the Ollama it downloads, so nobody needs Homebrew or the Terminal.
@@ -42,6 +52,7 @@ final class OllamaManager: ObservableObject {
     /// Homebrew's, the Ollama app's, then the one this app downloaded.
     private static var binaryPaths: [String] {
         ["/opt/homebrew/bin/ollama", "/usr/local/bin/ollama", "/Applications/Ollama.app/Contents/Resources/ollama",
+         NSHomeDirectory() + "/Applications/Ollama.app/Contents/Resources/ollama",
          bundledDirectory.appendingPathComponent("ollama").path]
     }
 
@@ -62,9 +73,34 @@ final class OllamaManager: ObservableObject {
         return installed.contains(full) || installed.contains(id)
     }
 
-    /// Starts `ollama serve` in the background.
+    /// Starts Ollama if it's installed and not already running (by this app, the Ollama app or Homebrew),
+    /// so nobody has to click Iniciar each time the app opens. Returns whether it's running.
+    @MainActor
+    @discardableResult
+    func ensureRunning() async -> Bool {
+        await refresh()
+        guard !isRunning, isInstalledOnMac, Self.isLocalHost else { return isRunning }
+        await start()
+        return isRunning
+    }
+
+    /// Starts `ollama serve` in the background. Concurrent calls wait for the same start.
     @MainActor
     func start() async {
+        if let starting { return await starting.value }
+        let task = Task { @MainActor in await launch() }
+        starting = task
+        await task.value
+        starting = nil
+    }
+
+    @MainActor
+    private func launch() async {
+        await refresh()
+        if isRunning { return }
+        // The one this app started is alive, just slow to answer (loading a model): wait instead of
+        // killing it, which would cancel what it's doing.
+        guard server?.isRunning != true else { return await waitUntilRunning() }
         guard let binary = Self.binaryPaths.first(where: FileManager.default.isExecutableFile) else {
             lastError = "Ollama não está instalado: clique em Instalar"
             return
@@ -81,11 +117,20 @@ final class OllamaManager: ObservableObject {
             lastError = "Não foi possível iniciar o Ollama"
             return
         }
-        for _ in 0..<20 {
+        await waitUntilRunning()
+    }
+
+    @MainActor
+    private func waitUntilRunning() async {
+        for _ in 0..<30 {
             try? await Task.sleep(for: .milliseconds(300))
             await refresh()
-            if isRunning { return }
+            if isRunning {
+                lastError = nil
+                return
+            }
         }
+        lastError = "O Ollama não iniciou"
     }
 
     func stop() {

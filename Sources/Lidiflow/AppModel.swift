@@ -137,15 +137,15 @@ final class AppModel: ObservableObject {
     @Published var llmProvider = Settings.llmProvider {
         didSet {
             Settings.llmProvider = llmProvider
-            if llmProvider != .ollama { Settings.lastCloudProvider = llmProvider }
+            if llmProvider.isLocal { Settings.lastLocalProvider = llmProvider } else { Settings.lastCloudProvider = llmProvider }
             llmModel = Settings.model(for: llmProvider)
         }
     }
 
-    /// Whether the AI runs on this Mac (Ollama) or on a cloud account.
+    /// Whether the AI runs on this Mac (Apple Intelligence or Ollama) or on a cloud account.
     var aiRunsLocally: Bool {
-        get { llmProvider == .ollama }
-        set { llmProvider = newValue ? .ollama : Settings.lastCloudProvider }
+        get { llmProvider.isLocal }
+        set { llmProvider = newValue ? Settings.lastLocalProvider : Settings.lastCloudProvider }
     }
     @Published var llmModel = Settings.model(for: Settings.llmProvider) {
         didSet { Settings.setModel(llmModel, for: llmProvider) }
@@ -160,7 +160,7 @@ final class AppModel: ObservableObject {
 
     let models = ModelManager()
     let microphones = MicrophoneList()
-    let ollama = OllamaManager()
+    let ollama = OllamaManager.shared
 
     var onShortcutsChange: ([ShortcutAction: [KeyCombo]]) -> Void = { _ in }
     /// Called when the transcription engine, local model or API key changes.
@@ -303,6 +303,12 @@ final class AppModel: ObservableObject {
         } else {
             onEngineChange()
         }
+    }
+
+    /// Switches the AI to an Ollama model (the provider first, since changing it reloads the saved model).
+    func useOllama(_ id: String) {
+        llmProvider = .ollama
+        llmModel = id
     }
 
     /// Deletes an Ollama model; if it was in use, switches to another installed one.

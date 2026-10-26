@@ -73,6 +73,8 @@ enum ModelCatalog {
         model("grok-4-fast-non-reasoning", 0.20, 0.50, 72, 92), model("grok-4-1-fast-reasoning", 0.20, 0.50, 82, 85),
         model("grok-4-1-fast-non-reasoning", 0.20, 0.50, 74, 92),
         model("grok-3", 3, 15, 78, 60), model("grok-3-mini", 0.30, 0.50, 65, 80),
+        // Apple Intelligence, built into macOS: about a 3B model, fast on Apple Silicon.
+        rated(AppleIntelligence.modelID, 40, 92),
         // Ollama, on this Mac: free, and the speed depends on the machine.
         rated("qwen2.5:3b", 35, 85), rated("llama3.2:3b", 32, 88), rated("phi3:mini", 30, 86), rated("qwen2.5:7b", 48, 65),
         rated("llama3.1:8b", 45, 62), rated("mistral:7b", 42, 66), rated("gemma2:9b", 50, 55),

@@ -84,6 +84,8 @@ final class AppController: NSObject, NSApplicationDelegate {
             self?.hotkey.ensureEnabled()
         }
         Task { @MainActor in await prepareEngine() }
+        // With an Ollama model in use, start Ollama now so the first dictation doesn't wait for it.
+        if Settings.llmProvider == .ollama { Task { @MainActor in await model.ollama.ensureRunning() } }
     }
 
     /// Starts or stops the local server to match the selected transcription engine.
