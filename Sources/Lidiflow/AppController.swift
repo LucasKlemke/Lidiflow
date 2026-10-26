@@ -42,7 +42,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppModel.apply(Settings.appearance)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "Lidiflow")
+        statusItem.button?.image = Self.menuBarIcon()
         buildMenu()
         buildMainMenu()
         // First launch: the setup window asks for each permission in turn, instead of every prompt at once.
@@ -548,6 +548,25 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Status & menu
+
+    private static func menuBarIcon() -> NSImage? {
+        let reps = ["MenuBarIcon", "MenuBarIcon@2x"]
+            .compactMap { Bundle.main.url(forResource: $0, withExtension: "png", subdirectory: "MenuBarIcon") }
+            .compactMap { try? Data(contentsOf: $0) }
+            .flatMap { NSBitmapImageRep.imageReps(with: $0) }
+        guard !reps.isEmpty else {
+            return NSImage(systemSymbolName: "waveform", accessibilityDescription: "Lidiflow")
+        }
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size)
+        for rep in reps {
+            rep.size = size
+            image.addRepresentation(rep)
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "Lidiflow"
+        return image
+    }
 
     private func setReady() {
         model.isReady = true

@@ -39,6 +39,7 @@ ditto "$BIN/CTranscribe.framework" "$APP/Contents/Frameworks/CTranscribe.framewo
 sign "$APP/Contents/Frameworks/CTranscribe.framework"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp -R Resources/ProviderIcons "$APP/Contents/Resources/ProviderIcons"
+cp -R Resources/MenuBarIcon "$APP/Contents/Resources/MenuBarIcon"
 
 ICONSET="$(mktemp -d)/AppIcon.iconset"
 mkdir -p "$ICONSET"
