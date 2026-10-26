@@ -37,8 +37,6 @@ final class OverlayState: ObservableObject {
     enum SideHint { case dictate, meeting }
     /// The dictation shortcut, shown when the idle bar is hovered.
     @Published var dictateKeys: [String] = []
-    /// The shortcut that pastes the last dictation, for the "nowhere to paste" card.
-    @Published var pasteKeys: [String] = []
     /// The microphone setting, for the bar's menu (a device UID, nil for the system default).
     @Published var microphone = Settings.microphone
     /// The connected microphones, for the same menu; set by AppController.
@@ -64,7 +62,6 @@ final class OverlayState: ObservableObject {
     var onStop: () -> Void = {}
     var onCancel: () -> Void = {}
     var onPasteLast: () -> Void = {}
-    var onCopyUnplaced: () -> Void = {}
     var onDismissUnplaced: () -> Void = {}
     var onOpenApp: () -> Void = {}
     var onHideForAnHour: () -> Void = {}
@@ -471,7 +468,7 @@ private struct BarView: View {
         case .listening, .handsFree, .command:
             side ? AnyView(recordingSide) : AnyView(recording)
         case .unplaced(let text):
-            AnyView(UnplacedView(text: text, pasteKeys: state.pasteKeys, copy: state.onCopyUnplaced, dismiss: state.onDismissUnplaced))
+            AnyView(UnplacedView(text: text, dismiss: state.onDismissUnplaced))
         default:
             side ? AnyView(busySide) : AnyView(busy)
         }
@@ -790,16 +787,13 @@ private struct OfferView: View {
 /// A dictation that found no text box: what was said, to copy, or paste later with the shortcut.
 private struct UnplacedView: View {
     let text: String
-    let pasteKeys: [String]
-    let copy: () -> Void
     let dismiss: () -> Void
-    @State private var copied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Image(systemName: "text.cursor").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.blueGlow)
-                Text("Nenhum campo de texto para colar").font(.system(size: 13, weight: .medium)).foregroundStyle(Color.white)
+                Image(systemName: "doc.on.clipboard").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.blueGlow)
+                Text("Copiado para a área de transferência").font(.system(size: 13, weight: .medium)).foregroundStyle(Color.white)
                 Spacer(minLength: 0)
                 Button(action: dismiss) {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.white.opacity(0.6))
@@ -816,26 +810,9 @@ private struct UnplacedView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .help(text)
             HStack(spacing: 6) {
-                if !pasteKeys.isEmpty {
-                    Text("Ou cole depois com").font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.5))
-                    KeyCaps(keys: pasteKeys, onBlue: true)
-                }
-                Spacer(minLength: 0)
-                Button {
-                    copy()
-                    withAnimation(.easeOut(duration: 0.15)) { copied = true }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.system(size: 11, weight: .semibold))
-                        Text(copied ? "Copiado" : "Copiar").font(.system(size: 13, weight: .semibold))
-                    }
-                    .foregroundStyle(Color.black)
-                    .padding(.horizontal, 12)
-                    .frame(height: 28)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                Text("Nenhum campo de texto selecionado. Cole com").font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.5))
+                KeyCaps(keys: ["⌘", "V"], onBlue: true)
+                Text("onde quiser").font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.5))
             }
         }
         .padding(.horizontal, 14)

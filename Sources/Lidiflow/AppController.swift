@@ -368,15 +368,6 @@ final class AppController: NSObject, NSApplicationDelegate {
         bar.onPasteLast = { [weak self] in
             if let last = self?.model.history.first { TextInserter.insert(last.text) }
         }
-        // Copying is the person's choice here, so it replaces the clipboard on purpose.
-        bar.onCopyUnplaced = { [weak self] in
-            guard case .unplaced(let text) = self?.overlay.state.phase else { return }
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-                if self?.overlay.state.phase == .unplaced(text) { self?.overlay.show(.hidden) }
-            }
-        }
         bar.onDismissUnplaced = { [weak self] in self?.overlay.show(.hidden) }
         bar.onOpenApp = { [weak self] in self?.mainWindow.show() }
         bar.microphones = model.microphones
@@ -520,9 +511,11 @@ final class AppController: NSObject, NSApplicationDelegate {
         return TextProcessor.apply(text, replacements: model.replacements, snippets: model.snippets)
     }
 
-    /// The card stays 12 s, longer while the mouse is on it, so the text can be read and copied.
+    /// Nowhere to paste: the text goes to the clipboard, so nothing said is lost, and the card says so.
+    /// It stays 12 s, longer while the mouse is on it.
     private func showUnplaced(_ text: String) {
-        overlay.state.pasteKeys = model.keys(for: .pasteLast)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
         overlay.show(.unplaced(text))
         scheduleUnplacedDismiss(after: 12, text: text)
     }

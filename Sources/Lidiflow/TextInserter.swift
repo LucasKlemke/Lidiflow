@@ -51,7 +51,7 @@ enum TextInserter {
         let status = AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused)
         // "Nothing focused" is also what Chrome reports for a focused text box while its accessibility is off.
         guard status == .success, let focused, CFGetTypeID(focused) == AXUIElementGetTypeID()
-        else { return isFinder ? .notEditable : .unknown }
+        else { return isFinder || !hasFocusedWindow(app) ? .notEditable : .unknown }
         let element = focused as! AXUIElement
 
         var roleValue: CFTypeRef?
@@ -64,6 +64,17 @@ enum TextInserter {
             return .editable
         }
         return nonTextRoles.contains(role) || isFinder ? .notEditable : .unknown
+    }
+
+    /// Whether the frontmost app has a window in focus. Without one (the desktop, an app with every window
+    /// closed) there's no text box anywhere, whereas a browser with its accessibility off still has a window.
+    private static func hasFocusedWindow(_ app: NSRunningApplication?) -> Bool {
+        guard let app else { return false }
+        var window: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(AXUIElementCreateApplication(app.processIdentifier),
+                                                   kAXFocusedWindowAttribute as CFString, &window)
+        // An app that doesn't answer may still have a text box: only a clear "no window" counts.
+        return status != .noValue
     }
 
     /// The focused app's selected text, via Accessibility or, failing that, a Cmd+C round trip.
