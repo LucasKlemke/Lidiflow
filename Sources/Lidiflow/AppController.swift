@@ -35,6 +35,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private let updateItem = NSMenuItem(title: "", action: #selector(installUpdate), keyEquivalent: "")
     private var updateWatch: AnyCancellable?
     private var subscriptions: Set<AnyCancellable> = []
+    private var tapWatchdog: Timer?
 
     private static let minimumDuration: TimeInterval = 0.35
 
@@ -78,6 +79,10 @@ final class AppController: NSObject, NSApplicationDelegate {
 
         if !onboarding { model.requestMicrophone() }
         startHotkeyWhenTrusted(prompt: !onboarding)
+        tapWatchdog = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.hotkey.ensureEnabled() }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.hotkey.ensureEnabled()
+        }
         Task { @MainActor in await prepareEngine() }
     }
 

@@ -85,6 +85,13 @@ final class HotkeyMonitor {
         return true
     }
 
+    /// macOS can switch the tap off (a slow callback, sleep, secure input) without always telling it,
+    /// which left the app open but deaf to the shortcut. Called periodically to switch it back on.
+    func ensureEnabled() {
+        guard let tap, !CGEvent.tapIsEnabled(tap: tap) else { return }
+        CGEvent.tapEnable(tap: tap, enable: true)
+    }
+
     /// Returns true to let the event through, false to swallow it.
     private func handle(_ type: CGEventType, _ event: CGEvent) -> Bool {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
