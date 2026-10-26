@@ -124,7 +124,8 @@ final class OverlayWindow {
             backing: .buffered,
             defer: true
         )
-        panel.level = .statusBar
+        // Above full-screen apps too: .statusBar sits under another app's full-screen space.
+        panel.level = .screenSaver
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -623,7 +624,7 @@ private final class DockGuideWindow {
 
     init() {
         panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
-        panel.level = .statusBar
+        panel.level = .screenSaver
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -931,7 +932,7 @@ private final class HintPanel {
 
     init() {
         panel = BarPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
-        panel.level = .statusBar
+        panel.level = .screenSaver
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -999,7 +1000,7 @@ private final class LivePanel {
     init() {
         panel = BarPanel(contentRect: NSRect(origin: .zero, size: Self.size), styleMask: [.borderless, .nonactivatingPanel],
                          backing: .buffered, defer: true)
-        panel.level = .statusBar
+        panel.level = .screenSaver
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
