@@ -5,6 +5,7 @@ struct OllamaModel: Identifiable, Hashable {
     let name: String
     let detail: String
     let size: String
+    var recommended = false
 }
 
 /// Downloads and tracks open-source models in a local Ollama.
@@ -12,7 +13,7 @@ final class OllamaManager: ObservableObject {
     /// One per app: the model screen and the AI requests share the server it starts.
     static let shared = OllamaManager()
     static let catalog = [
-        OllamaModel(id: "qwen2.5:3b", name: "Qwen 2.5 3B", detail: "Rápido e bom em português", size: "1,9 GB"),
+        OllamaModel(id: "qwen2.5:3b", name: "Qwen 2.5 3B", detail: "Rápido e bom em português", size: "1,9 GB", recommended: true),
         OllamaModel(id: "llama3.2:3b", name: "Llama 3.2 3B", detail: "Leve, da Meta", size: "2,0 GB"),
         OllamaModel(id: "phi3:mini", name: "Phi-3 Mini", detail: "Compacto, da Microsoft", size: "2,2 GB"),
         OllamaModel(id: "qwen2.5:7b", name: "Qwen 2.5 7B", detail: "Melhor qualidade, mais lento", size: "4,7 GB"),
@@ -24,6 +25,8 @@ final class OllamaManager: ObservableObject {
     @Published private(set) var isRunning = false
     @Published private(set) var installed: [String] = []
     @Published private(set) var progress: [String: Double] = [:]
+    /// Models waiting for Ollama itself to be downloaded or started before their own download begins.
+    @Published private(set) var preparing: Set<String> = []
     @Published private(set) var lastError: String?
     /// 0–1 while the app downloads Ollama itself.
     @Published private(set) var installProgress: Double?
@@ -198,16 +201,27 @@ final class OllamaManager: ObservableObject {
         func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {}
     }
 
+    /// Downloads a model in one step: installs and starts Ollama first when needed, so the user only picks
+    /// a model. `done` runs once the model is ready.
     @MainActor
-    func pull(_ id: String) {
+    func pull(_ id: String, done: @escaping @MainActor () -> Void = {}) {
         guard pulls[id] == nil else { return }
         lastError = nil
-        progress[id] = 0
         pulls[id] = Task { @MainActor in
             defer {
                 pulls[id] = nil
                 progress[id] = nil
+                preparing.remove(id)
             }
+            preparing.insert(id)
+            if !isInstalledOnMac && Self.isLocalHost { await install() }
+            guard !Task.isCancelled else { return }
+            guard await ensureRunning() else {
+                if lastError == nil { lastError = "O Ollama não iniciou" }
+                return
+            }
+            preparing.remove(id)
+            progress[id] = 0
             do {
                 var request = URLRequest(url: Self.host.appendingPathComponent("api/pull"))
                 request.httpMethod = "POST"
@@ -226,6 +240,7 @@ final class OllamaManager: ObservableObject {
                     }
                 }
                 await refresh()
+                if isInstalled(id) { done() }
             } catch is CancellationError {
                 return
             } catch {

@@ -341,7 +341,6 @@ private struct AIModelCard: View {
     @State private var fetched: [String] = []
     @State private var loading = false
     @State private var error: String?
-    @State private var showOllama = Settings.llmProvider == .ollama
 
     private var provider: LLMProvider { model.llmProvider }
     private static let cloudProviders = LLMProvider.allCases.filter(\.needsKey)
@@ -370,11 +369,9 @@ private struct AIModelCard: View {
         .task(id: provider) {
             fetched = []
             error = nil
-            if provider == .ollama {
-                // Starts it on its own when installed, instead of asking for Iniciar every time.
+            if provider.isLocal {
+                // Lists the models already downloaded, starting Ollama on its own when it's installed.
                 await ollama.ensureRunning()
-            } else if provider == .apple {
-                await ollama.refresh()
             } else if model.savedKeys.contains(provider) {
                 await loadModels()
             }
@@ -384,49 +381,10 @@ private struct AIModelCard: View {
         }
     }
 
+    /// One list: Apple's model, then the Ollama ones. Ollama itself is never the user's concern: Baixar
+    /// installs and starts it when needed, and the app starts it again whenever it's used.
     @ViewBuilder private var localRows: some View {
-        if AppleIntelligence.isSupported {
-            AppleIntelligenceRow(model: model)
-            SettingRow(title: "Outros modelos (Ollama)",
-                       detail: "Qwen, Llama, Mistral, Gemma… baixados e rodando no Ollama",
-                       divider: showOllama) {
-                Button(showOllama ? "Ocultar" : "Mostrar") { showOllama.toggle() }
-                    .buttonStyle(SecondaryButtonStyle())
-            }
-            if showOllama { ollamaRows }
-        } else {
-            ollamaRows
-        }
-    }
-
-    @ViewBuilder private var ollamaRows: some View {
-        if ollama.isRunning || ollama.isInstalledOnMac {
-            SettingRow(title: ollama.isRunning ? "Ollama rodando" : "Ollama parado",
-                       detail: ollama.isRunning ? "Baixe um modelo abaixo e clique em Usar"
-                           : "Inicia sozinho quando um modelo do Ollama está em uso") {
-                if ollama.isRunning {
-                    Circle().fill(Color.green).frame(width: 8, height: 8)
-                } else {
-                    Button("Iniciar") { Task { await ollama.start() } }
-                        .buttonStyle(SecondaryButtonStyle())
-                }
-            }
-        } else {
-            // The models below run in Ollama, so it comes first; the app installs it, no Terminal needed.
-            SettingRow(title: "Instalar o Ollama",
-                       detail: "Roda os modelos de IA no seu Mac. O Lidiflow baixa a versão oficial (175 MB).") {
-                if let progress = ollama.installProgress {
-                    ProgressView(value: progress).frame(width: 110)
-                    Text(progress.formatted(.percent.precision(.fractionLength(0))))
-                        .font(.system(size: 12).monospacedDigit())
-                        .foregroundStyle(Theme.secondary)
-                        .frame(width: 36)
-                } else {
-                    Button { Task { await ollama.install() } } label: { Label("Instalar", systemImage: "arrow.down") }
-                        .buttonStyle(PrimaryButtonStyle())
-                }
-            }
-        }
+        if AppleIntelligence.isSupported { AppleIntelligenceRow(model: model) }
         ForEach(OllamaManager.catalog) { item in
             OllamaModelRow(item: item, model: model, ollama: ollama)
         }
@@ -589,9 +547,7 @@ private struct OllamaModelRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(item.name).foregroundStyle(Theme.text)
-                        if item.id == ModelManager.recommended.id {
-                            RecommendedBadge()
-                        }
+                        if item.recommended { RecommendedBadge() }
                     }
                     Text("\(item.detail) · \(item.size)").font(.system(size: 12)).foregroundStyle(Theme.secondary)
                 }
@@ -600,7 +556,13 @@ private struct OllamaModelRow: View {
                     ScoreBars(accuracy: rating.intelligence, speed: rating.speed, quality: "inteligência")
                         .padding(.trailing, 8)
                 }
-                if let progress = ollama.progress[item.id] {
+                if ollama.preparing.contains(item.id) {
+                    ProgressView().controlSize(.small)
+                    Text("Preparando…").font(.system(size: 12)).foregroundStyle(Theme.secondary)
+                    Button { ollama.cancel(item.id) } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.secondary)
+                } else if let progress = ollama.progress[item.id] {
                     ProgressView(value: progress).frame(width: 110)
                     Text(progress.formatted(.percent.precision(.fractionLength(0))))
                         .font(.system(size: 12).monospacedDigit())
@@ -619,9 +581,8 @@ private struct OllamaModelRow: View {
                         Task { await model.uninstallOllama(item.id) }
                     }
                 } else {
-                    Button { ollama.pull(item.id) } label: { Label("Baixar", systemImage: "arrow.down") }
+                    Button { ollama.pull(item.id) { model.useOllama(item.id) } } label: { Label("Baixar", systemImage: "arrow.down") }
                         .buttonStyle(SecondaryButtonStyle())
-                        .disabled(!ollama.isRunning)
                 }
             }
             .padding(.horizontal, 16)
