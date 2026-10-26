@@ -119,7 +119,8 @@ enum LLM {
     /// short context window and would otherwise read only its beginning. The user's instructions stay out, since
     /// they could change the sections the app reads back (tasks, decisions).
     static func summarizeMeeting(_ transcript: String) async throws -> String {
-        let limit = 8_000
+        // Apple's on-device model has a ~4k-token window, instructions and reply included.
+        let limit = Settings.llmProvider == .apple ? 3_000 : 8_000
         guard transcript.count > limit else {
             return try await complete(system: meetingInstructions, user: "Transcrição:\n\(transcript)\n\n\(meetingTemplate)",
                                       withUserInstructions: false)
